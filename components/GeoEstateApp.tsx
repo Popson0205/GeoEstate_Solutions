@@ -23,10 +23,95 @@ const DEMO_STYLE = {
       attribution: "© OpenStreetMap contributors"
     }
   },
-  layers: [
-    { id: "osm", type: "raster", source: "osm" }
-  ]
+  layers: [{ id: "osm", type: "raster", source: "osm" }]
 } as any;
+
+const DEMO_GEOJSON = {
+  roads: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { name: "Osogbo–Ilobu Road" }, geometry: { type: "LineString", coordinates: [[4.472,7.818],[4.505,7.804],[4.542,7.792],[4.581,7.778],[4.617,7.763]] } },
+      { type: "Feature", properties: { name: "Fagbewesa Road" }, geometry: { type: "LineString", coordinates: [[4.500,7.760],[4.522,7.775],[4.545,7.789],[4.567,7.806]] } },
+      { type: "Feature", properties: { name: "Osogbo–Iwo Road" }, geometry: { type: "LineString", coordinates: [[4.522,7.735],[4.535,7.758],[4.548,7.784],[4.558,7.818]] } }
+    ]
+  },
+  properties: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { name: "Demo Property A" }, geometry: { type: "Polygon", coordinates: [[[4.535,7.790],[4.539,7.790],[4.539,7.793],[4.535,7.793],[4.535,7.790]]] } },
+      { type: "Feature", properties: { name: "Demo Property B" }, geometry: { type: "Polygon", coordinates: [[[4.551,7.779],[4.556,7.779],[4.556,7.783],[4.551,7.783],[4.551,7.779]]] } },
+      { type: "Feature", properties: { name: "Demo Property C" }, geometry: { type: "Polygon", coordinates: [[[4.574,7.799],[4.579,7.799],[4.579,7.803],[4.574,7.803],[4.574,7.799]]] } }
+    ]
+  },
+  schools: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { name: "Demo School 1" }, geometry: { type: "Point", coordinates: [4.526,7.787] } },
+      { type: "Feature", properties: { name: "Demo School 2" }, geometry: { type: "Point", coordinates: [4.558,7.798] } },
+      { type: "Feature", properties: { name: "Demo School 3" }, geometry: { type: "Point", coordinates: [4.575,7.770] } }
+    ]
+  },
+  hospitals: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { name: "Demo Hospital 1" }, geometry: { type: "Point", coordinates: [4.546,7.776] } },
+      { type: "Feature", properties: { name: "Demo Hospital 2" }, geometry: { type: "Point", coordinates: [4.583,7.789] } }
+    ]
+  },
+  markets: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { name: "Demo Market 1" }, geometry: { type: "Point", coordinates: [4.532,7.800] } },
+      { type: "Feature", properties: { name: "Demo Market 2" }, geometry: { type: "Point", coordinates: [4.563,7.782] } }
+    ]
+  },
+  government: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { name: "Demo Government Facility 1" }, geometry: { type: "Point", coordinates: [4.551,7.795] } },
+      { type: "Feature", properties: { name: "Demo Government Facility 2" }, geometry: { type: "Point", coordinates: [4.585,7.775] } }
+    ]
+  },
+  flood: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { risk: "Potential flood-prone area" }, geometry: { type: "Polygon", coordinates: [[[4.535,7.766],[4.548,7.761],[4.565,7.765],[4.574,7.758],[4.568,7.749],[4.548,7.752],[4.531,7.759],[4.535,7.766]]] } },
+      { type: "Feature", properties: { risk: "Potential flood-prone area" }, geometry: { type: "Polygon", coordinates: [[[4.580,7.806],[4.596,7.802],[4.608,7.794],[4.601,7.786],[4.586,7.790],[4.575,7.798],[4.580,7.806]]] } }
+    ]
+  },
+  landcover: {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: { class: "Built-up" }, geometry: { type: "Polygon", coordinates: [[[4.518,7.816],[4.548,7.817],[4.560,7.800],[4.548,7.785],[4.520,7.789],[4.510,7.803],[4.518,7.816]]] } },
+      { type: "Feature", properties: { class: "Vegetation" }, geometry: { type: "Polygon", coordinates: [[[4.568,7.817],[4.600,7.811],[4.615,7.790],[4.600,7.773],[4.572,7.781],[4.562,7.798],[4.568,7.817]]] } },
+      { type: "Feature", properties: { class: "Open land" }, geometry: { type: "Polygon", coordinates: [[[4.505,7.770],[4.527,7.768],[4.536,7.748],[4.522,7.733],[4.501,7.741],[4.495,7.757],[4.505,7.770]]] } }
+    ]
+  }
+} as const;
+
+const VECTOR_LAYER_IDS = ["roads", "properties", "schools", "hospitals", "markets", "government", "flood", "landcover"];
+
+function addDemoLayers(map: MapLibreMap) {
+  const sources = DEMO_GEOJSON as Record<string, any>;
+  Object.entries(sources).forEach(([id, data]) => {
+    map.addSource(`geoestate-${id}`, { type: "geojson", data });
+  });
+
+  map.addLayer({ id: "geoestate-landcover", type: "fill", source: "geoestate-landcover", paint: { "fill-color": ["match", ["get", "class"], "Built-up", "#9fc5ad", "Vegetation", "#76a97f", "Open land", "#d9c889", "#a9b8ad"], "fill-opacity": 0.24 } });
+  map.addLayer({ id: "geoestate-flood", type: "fill", source: "geoestate-flood", paint: { "fill-color": "#2e9fd0", "fill-opacity": 0.26 } });
+  map.addLayer({ id: "geoestate-properties", type: "fill", source: "geoestate-properties", paint: { "fill-color": "#0b5d3b", "fill-opacity": 0.18, "fill-outline-color": "#0b5d3b" } });
+  map.addLayer({ id: "geoestate-roads", type: "line", source: "geoestate-roads", paint: { "line-color": "#0b5d3b", "line-width": 4, "line-opacity": 0.78 } });
+
+  const points = [
+    ["schools", "#2563eb"], ["hospitals", "#dc2626"], ["markets", "#c2410c"], ["government", "#7c3aed"]
+  ] as const;
+  points.forEach(([id, color]) => {
+    map.addLayer({ id: `geoestate-${id}`, type: "circle", source: `geoestate-${id}`, paint: {
+      "circle-radius": 7, "circle-color": color, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
+      "circle-opacity": 0.95
+    } });
+  });
+}
 
 type Layer = { id: string; label: string; icon: React.ReactNode };
 
@@ -65,6 +150,10 @@ export default function GeoEstateApp() {
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
 
+    map.on("load", () => {
+      addDemoLayers(map);
+    });
+
     map.on("click", (e) => {
       setSelected(demoLandCheck(e.lngLat.lat, e.lngLat.lng));
     });
@@ -82,7 +171,12 @@ export default function GeoEstateApp() {
   }
 
   function toggleLayer(id: string) {
-    setActiveLayers(prev => ({ ...prev, [id]: !prev[id] }));
+    const nextVisible = !activeLayers[id];
+    setActiveLayers(prev => ({ ...prev, [id]: nextVisible }));
+    const map = mapRef.current;
+    if (!map || !VECTOR_LAYER_IDS.includes(id)) return;
+    const layer = map.getLayer(`geoestate-${id}`);
+    if (layer) map.setLayoutProperty(`geoestate-${id}`, "visibility", nextVisible ? "visible" : "none");
   }
 
   function checkCurrentLocation() {
