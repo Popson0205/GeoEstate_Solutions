@@ -69,19 +69,23 @@ function addProviderLayers(map: MapLibreMap, data: any) {
     paint: { "line-color": "#168aad", "line-width": 2.5, "line-opacity": 0.72, "line-dasharray": [2, 2] }
   });
 
-  // ESA WorldCover 2021 is a real 10 m land-cover product. WMS is used here
-  // for visualization; analytical class extraction will be added server-side later.
-  if (!map.getSource("geoestate-landcover")) {
+}
+
+// Land cover is a static overlay clipped from ESA WorldCover (see scripts/prepare-worldcover.sh).
+// No third-party tile server involved; if the files are not generated yet the layer is simply skipped.
+async function addLandcover(map: MapLibreMap) {
+  try {
+    const r = await fetch("/api/landcover/meta");
+    if (!r.ok) return;
+    const m = await r.json();
+    const b = m.bounds;
+    if (map.getSource("geoestate-landcover")) return;
     map.addSource("geoestate-landcover", {
-      type: "raster",
-      tiles: ["https://services.terrascope.be/wmts/v2?layer=WORLDCOVER_2021_MAP&style=&tilematrixset=EPSG%3A3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/png&TileMatrix=EPSG%3A3857%3A{z}&TileCol={x}&TileRow={y}"],
-      minzoom: 5,
-      maxzoom: 14,
-      tileSize: 256,
-      attribution: "© ESA WorldCover 2021 / Copernicus Sentinel data"
+      type: "image", url: m.image,
+      coordinates: [[b.west, b.north], [b.east, b.north], [b.east, b.south], [b.west, b.south]],
     });
-    map.addLayer({ id: "geoestate-landcover", type: "raster", source: "geoestate-landcover", paint: { "raster-opacity": 0.34 } });
-  }
+    map.addLayer({ id: "geoestate-landcover", type: "raster", source: "geoestate-landcover", paint: { "raster-opacity": 0.4, "raster-resampling": "nearest" } }, "geoestate-roads");
+  } catch (e) { console.warn("GeoEstate land cover overlay unavailable", e); }
 }
 
 type Layer = { id: string; label: string; icon: React.ReactNode };
@@ -149,6 +153,7 @@ export default function GeoEstateApp() {
     map.on("load", () => {
       addProviderLayers(map, null); // layers exist immediately, data fills in below
       loadSpatial();
+      addLandcover(map);
     });
     map.on("moveend", () => {
       if (!map.isStyleLoaded() || !map.getSource("geoestate-roads")) return;

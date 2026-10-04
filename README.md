@@ -88,3 +88,12 @@ If the script cannot reach any Overpass mirror either, use a Geofabrik extract i
 download `nigeria-latest.osm.pbf` from download.geofabrik.de, clip it with
 `osmium extract -b 4.45,7.68,4.68,7.90 nigeria-latest.osm.pbf -o osogbo.osm.pbf`,
 then load it into PostGIS with osm2pgsql (the planned Supabase/PostGIS phase).
+
+## v0.8 — land cover without a third-party tile server
+
+Terrascope's tile servers drop connections from browsers (`ERR_HTTP2_PROTOCOL_ERROR`) on both WMS and WMTS, so land cover is now a static overlay from ESA WorldCover 2021 v200:
+
+1. Install GDAL, then from the project root: `bash scripts/prepare-worldcover.sh` (downloads only the Osogbo window from the public AWS COG).
+2. Commit `public/worldcover-osogbo.png` and `data/worldcover_osogbo.asc`, redeploy.
+3. The map shows the overlay and the LandCheck card reports the actual class at the clicked point (Built-up, Cropland, Tree cover, ...).
+Without those files the app still works; the layer is skipped and land cover shows "Not available".

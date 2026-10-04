@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nearbyFromSnapshot } from "@/lib/osm";
+import { landCoverAt } from "@/lib/landcover";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -180,7 +181,7 @@ export async function GET(request: NextRequest) {
     nearestHospital: fmt(n.hospD, n.hospName, "No mapped hospital nearby"),
     elevation: elevation == null ? "Unavailable" : `${Math.round(elevation)} m`,
     slope: "Not yet calculated",
-    landCover: "ESA WorldCover layer",
+    landCover: landCoverAt(lat, lng) ?? "Not available",
     source: "OSM/Overpass + Copernicus DEM GLO-90",
   });
 }
