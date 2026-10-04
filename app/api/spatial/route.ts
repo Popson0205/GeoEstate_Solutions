@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
   // building/road geometries and trigger a provider timeout (502 on Railway).
   const centerLat = (south + north) / 2;
   const centerLng = (west + east) / 2;
-  const maxLatSpan = 0.105;
-  const maxLngSpan = 0.155;
+  const maxLatSpan = 0.06;
+  const maxLngSpan = 0.09;
   const latSpan = Math.min(north - south, maxLatSpan);
   const lngSpan = Math.min(east - west, maxLngSpan);
   south = centerLat - latSpan / 2;
@@ -71,18 +71,20 @@ export async function GET(request: NextRequest) {
   east = centerLng + lngSpan / 2;
 
   const bbox = `${south},${west},${north},${east}`;
+  const zoom = Number(searchParams.get("zoom") || 0);
+  const includeBuildings = zoom >= 14;
 
   // Geometry is only requested for roads. Buildings and POIs use their
   // centers at this zoom level, which keeps the response small and fast.
   // A later high-zoom property endpoint can request true building polygons.
   const query = `
-[out:json][timeout:18];
+[out:json][timeout:15];
 way["highway"~"motorway|trunk|primary|secondary|tertiary"](${bbox});
-out geom qt;
+out geom qt 1500;
 way["highway"~"unclassified|residential|service"](${bbox});
-out center qt;
+out center qt 1500;
 (
-  way["building"](${bbox});
+  ${includeBuildings ? `way["building"](${bbox});` : ""}
   nwr["amenity"~"school|hospital|marketplace|townhall"](${bbox});
   nwr["shop"="market"](${bbox});
   nwr["office"="government"](${bbox});
@@ -90,7 +92,7 @@ out center qt;
   way["waterway"](${bbox});
   way["natural"="water"](${bbox});
 );
-out center qt;`;
+out center qt ${includeBuildings ? 4000 : 800};`;
 
   const endpoints = Array.from(new Set([
     OVERPASS_URL,
@@ -102,7 +104,7 @@ out center qt;`;
 
   for (const endpoint of endpoints) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 22000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     try {
       const response = await fetch(endpoint, {

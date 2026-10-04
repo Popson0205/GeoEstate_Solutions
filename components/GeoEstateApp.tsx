@@ -32,7 +32,7 @@ function addProviderLayers(map: MapLibreMap, data: any) {
   const groups = ["roads", "properties", "schools", "hospitals", "markets", "government", "flood"] as const;
   for (const id of groups) {
     if (map.getSource(`geoestate-${id}`)) continue;
-    map.addSource(`geoestate-${id}`, { type: "geojson", data: data[id] });
+    map.addSource(`geoestate-${id}`, { type: "geojson", data: data?.[id] ?? { type: "FeatureCollection", features: [] } });
   }
 
   map.addLayer({
@@ -74,7 +74,7 @@ function addProviderLayers(map: MapLibreMap, data: any) {
   if (!map.getSource("geoestate-landcover")) {
     map.addSource("geoestate-landcover", {
       type: "raster",
-      tiles: ["https://titiler.terrascope.be/wms?service=WMS&request=GetMap&version=1.3.0&layers=WORLDCOVER_2021_MAP&styles=&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true"],
+      tiles: ["https://services.terrascope.be/wms/v2?service=WMS&request=GetMap&version=1.3.0&layers=WORLDCOVER_2021_MAP&styles=&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true"],
       tileSize: 256,
       attribution: "© ESA WorldCover 2021 / Copernicus Sentinel data"
     });
@@ -101,6 +101,7 @@ export default function GeoEstateApp() {
   const [selected, setSelected] = useState<LandCheckResult | null>(null);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>(
     Object.fromEntries(layers.map(x => [x.id, true]))
   );
@@ -119,33 +120,50 @@ export default function GeoEstateApp() {
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
 
-    map.on("load", async () => {
+    let loadTimer: ReturnType<typeof setTimeout> | undefined;
+    async function loadSpatial() {
       try {
-        const bounds = map.getBounds();
+        const b = map.getBounds();
         const params = new URLSearchParams({
-          south: String(bounds.getSouth()), west: String(bounds.getWest()),
-          north: String(bounds.getNorth()), east: String(bounds.getEast()),
+          south: String(b.getSouth()), west: String(b.getWest()),
+          north: String(b.getNorth()), east: String(b.getEast()),
           zoom: String(map.getZoom())
         });
         const response = await fetch(`/api/spatial?${params.toString()}`);
         if (!response.ok) throw new Error("Spatial provider failed");
         const data = await response.json();
-        addProviderLayers(map, data);
-        if (data.providerStatus === "temporarily_unavailable") {
-          console.warn("GeoEstate: OSM provider temporarily unavailable", data.warning);
+        for (const id of ["roads", "properties", "schools", "hospitals", "markets", "government", "flood"]) {
+          (map.getSource(`geoestate-${id}`) as maplibregl.GeoJSONSource | undefined)?.setData(data[id]);
         }
+        if (data.providerStatus === "temporarily_unavailable") {
+          setNotice("Live OpenStreetMap layers are temporarily unavailable. Pan the map to retry.");
+        } else setNotice(null);
       } catch (error) {
         console.error("GeoEstate spatial layers failed", error);
+        setNotice("Could not load map layers. Pan the map to retry.");
       }
+    }
+
+    map.on("load", () => {
+      addProviderLayers(map, null); // layers exist immediately, data fills in below
+      loadSpatial();
+    });
+    map.on("moveend", () => {
+      if (!map.isStyleLoaded() || !map.getSource("geoestate-roads")) return;
+      clearTimeout(loadTimer);
+      loadTimer = setTimeout(loadSpatial, 600);
     });
 
     map.on("click", async (e) => {
       try {
         const response = await fetch(`/api/landcheck?lat=${e.lngLat.lat}&lng=${e.lngLat.lng}`);
-        if (!response.ok) throw new Error("LandCheck failed");
-        setSelected(await response.json());
-      } catch (error) {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || "LandCheck failed");
+        setSelected(body);
+        setNotice(null);
+      } catch (error: any) {
         console.error("GeoEstate LandCheck failed", error);
+        setNotice(error?.message || "LandCheck failed. Please try again.");
       }
     });
 
@@ -177,9 +195,9 @@ export default function GeoEstateApp() {
     if (!map) return;
     const c = map.getCenter();
     fetch(`/api/landcheck?lat=${c.lat}&lng=${c.lng}`)
-      .then(r => r.json())
-      .then(setSelected)
-      .catch(error => console.error("GeoEstate LandCheck failed", error));
+      .then(async r => { const b = await r.json().catch(() => ({})); if (!r.ok) throw new Error(b.error || "LandCheck failed"); return b; })
+      .then(b => { setSelected(b); setNotice(null); })
+      .catch(error => { console.error("GeoEstate LandCheck failed", error); setNotice(error?.message || "LandCheck failed. Please try again."); });
   }
 
   return (
@@ -265,6 +283,12 @@ export default function GeoEstateApp() {
             <div className="map-chip green">OSOGBO • PILOT</div>
             <div className="map-chip">Click map to LandCheck</div>
           </div>
+
+          {notice && (
+            <div className="map-chip" role="status" style={{ position: "absolute", top: 56, left: 12, zIndex: 5, background: "#fff7ed", color: "#9a3412", border: "1px solid #fdba74" }}>
+              {notice}
+            </div>
+          )}
 
           {!selected && (
             <div className="empty-hint">

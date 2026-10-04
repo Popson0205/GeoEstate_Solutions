@@ -61,3 +61,11 @@ Set the same environment variables in the Railway service. Do not commit Supabas
 The spatial endpoint now keeps Overpass requests within a bounded viewport, requests road geometry separately from building/POI centers, uses multiple public Overpass endpoints, and returns a non-blocking empty FeatureCollection if all providers are temporarily unavailable instead of producing a Railway 502.
 
 Buildings are represented as OSM building-center features at the pilot zoom level to keep responses lightweight. True building polygons should be introduced through a dedicated high-zoom/vector-tile or PostGIS pipeline rather than downloading every building geometry on each map load.
+
+## v0.5 fixes
+
+- `/api/landcheck` no longer calls its own `/api/spatial` over the public URL or downloads every building in 6 km. It runs one small targeted Overpass query (nearest road/school/hospital + building count within 1 km), races all mirrors in parallel with a 12 s cap, and returns a clean 503 + message (never a proxy 502) if OSM is down.
+- Nearest-road distance now uses point-to-segment distance instead of a way's midpoint.
+- `/api/spatial` caps viewport smaller, loads buildings only at zoom >= 14, limits result counts, and the client refetches on pan/zoom.
+- Map layers are created up front, so layer toggles work even when the provider fails.
+- Land cover WMS moved from `titiler.terrascope.be` (returned 400) to the documented `services.terrascope.be/wms/v2`.
