@@ -54,3 +54,10 @@ Set the same environment variables in the Railway service. Do not commit Supabas
 5. Add an authoritative flood-risk model/dataset.
 6. Add analytical land-cover class lookup rather than only WMS visualization.
 7. Add report generation and saved LandChecks.
+
+
+## v0.4 provider reliability
+
+The spatial endpoint now keeps Overpass requests within a bounded viewport, requests road geometry separately from building/POI centers, uses multiple public Overpass endpoints, and returns a non-blocking empty FeatureCollection if all providers are temporarily unavailable instead of producing a Railway 502.
+
+Buildings are represented as OSM building-center features at the pilot zoom level to keep responses lightweight. True building polygons should be introduced through a dedicated high-zoom/vector-tile or PostGIS pipeline rather than downloading every building geometry on each map load.

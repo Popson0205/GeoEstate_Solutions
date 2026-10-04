@@ -124,12 +124,16 @@ export default function GeoEstateApp() {
         const bounds = map.getBounds();
         const params = new URLSearchParams({
           south: String(bounds.getSouth()), west: String(bounds.getWest()),
-          north: String(bounds.getNorth()), east: String(bounds.getEast())
+          north: String(bounds.getNorth()), east: String(bounds.getEast()),
+          zoom: String(map.getZoom())
         });
         const response = await fetch(`/api/spatial?${params.toString()}`);
         if (!response.ok) throw new Error("Spatial provider failed");
         const data = await response.json();
         addProviderLayers(map, data);
+        if (data.providerStatus === "temporarily_unavailable") {
+          console.warn("GeoEstate: OSM provider temporarily unavailable", data.warning);
+        }
       } catch (error) {
         console.error("GeoEstate spatial layers failed", error);
       }
