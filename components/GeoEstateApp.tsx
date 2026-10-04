@@ -7,9 +7,11 @@ import {
   Route, ShoppingBag, Landmark, Droplets, Trees, X, FileText,
   Crosshair, Menu, ChevronRight
 } from "lucide-react";
-import { demoLandCheck, type LandCheckResult } from "@/lib/demo";
+import type { LandCheckResult } from "@/lib/demo";
 
-const DEMO_STYLE = {
+const VECTOR_LAYER_IDS = ["roads", "properties", "schools", "hospitals", "markets", "government", "flood", "landcover"];
+
+const OSM_STYLE = {
   version: 8,
   sources: {
     osm: {
@@ -26,91 +28,58 @@ const DEMO_STYLE = {
   layers: [{ id: "osm", type: "raster", source: "osm" }]
 } as any;
 
-const DEMO_GEOJSON = {
-  roads: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { name: "Osogbo–Ilobu Road" }, geometry: { type: "LineString", coordinates: [[4.472,7.818],[4.505,7.804],[4.542,7.792],[4.581,7.778],[4.617,7.763]] } },
-      { type: "Feature", properties: { name: "Fagbewesa Road" }, geometry: { type: "LineString", coordinates: [[4.500,7.760],[4.522,7.775],[4.545,7.789],[4.567,7.806]] } },
-      { type: "Feature", properties: { name: "Osogbo–Iwo Road" }, geometry: { type: "LineString", coordinates: [[4.522,7.735],[4.535,7.758],[4.548,7.784],[4.558,7.818]] } }
-    ]
-  },
-  properties: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { name: "Demo Property A" }, geometry: { type: "Polygon", coordinates: [[[4.535,7.790],[4.539,7.790],[4.539,7.793],[4.535,7.793],[4.535,7.790]]] } },
-      { type: "Feature", properties: { name: "Demo Property B" }, geometry: { type: "Polygon", coordinates: [[[4.551,7.779],[4.556,7.779],[4.556,7.783],[4.551,7.783],[4.551,7.779]]] } },
-      { type: "Feature", properties: { name: "Demo Property C" }, geometry: { type: "Polygon", coordinates: [[[4.574,7.799],[4.579,7.799],[4.579,7.803],[4.574,7.803],[4.574,7.799]]] } }
-    ]
-  },
-  schools: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { name: "Demo School 1" }, geometry: { type: "Point", coordinates: [4.526,7.787] } },
-      { type: "Feature", properties: { name: "Demo School 2" }, geometry: { type: "Point", coordinates: [4.558,7.798] } },
-      { type: "Feature", properties: { name: "Demo School 3" }, geometry: { type: "Point", coordinates: [4.575,7.770] } }
-    ]
-  },
-  hospitals: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { name: "Demo Hospital 1" }, geometry: { type: "Point", coordinates: [4.546,7.776] } },
-      { type: "Feature", properties: { name: "Demo Hospital 2" }, geometry: { type: "Point", coordinates: [4.583,7.789] } }
-    ]
-  },
-  markets: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { name: "Demo Market 1" }, geometry: { type: "Point", coordinates: [4.532,7.800] } },
-      { type: "Feature", properties: { name: "Demo Market 2" }, geometry: { type: "Point", coordinates: [4.563,7.782] } }
-    ]
-  },
-  government: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { name: "Demo Government Facility 1" }, geometry: { type: "Point", coordinates: [4.551,7.795] } },
-      { type: "Feature", properties: { name: "Demo Government Facility 2" }, geometry: { type: "Point", coordinates: [4.585,7.775] } }
-    ]
-  },
-  flood: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { risk: "Potential flood-prone area" }, geometry: { type: "Polygon", coordinates: [[[4.535,7.766],[4.548,7.761],[4.565,7.765],[4.574,7.758],[4.568,7.749],[4.548,7.752],[4.531,7.759],[4.535,7.766]]] } },
-      { type: "Feature", properties: { risk: "Potential flood-prone area" }, geometry: { type: "Polygon", coordinates: [[[4.580,7.806],[4.596,7.802],[4.608,7.794],[4.601,7.786],[4.586,7.790],[4.575,7.798],[4.580,7.806]]] } }
-    ]
-  },
-  landcover: {
-    type: "FeatureCollection",
-    features: [
-      { type: "Feature", properties: { class: "Built-up" }, geometry: { type: "Polygon", coordinates: [[[4.518,7.816],[4.548,7.817],[4.560,7.800],[4.548,7.785],[4.520,7.789],[4.510,7.803],[4.518,7.816]]] } },
-      { type: "Feature", properties: { class: "Vegetation" }, geometry: { type: "Polygon", coordinates: [[[4.568,7.817],[4.600,7.811],[4.615,7.790],[4.600,7.773],[4.572,7.781],[4.562,7.798],[4.568,7.817]]] } },
-      { type: "Feature", properties: { class: "Open land" }, geometry: { type: "Polygon", coordinates: [[[4.505,7.770],[4.527,7.768],[4.536,7.748],[4.522,7.733],[4.501,7.741],[4.495,7.757],[4.505,7.770]]] } }
-    ]
+function addProviderLayers(map: MapLibreMap, data: any) {
+  const groups = ["roads", "properties", "schools", "hospitals", "markets", "government", "flood"] as const;
+  for (const id of groups) {
+    if (map.getSource(`geoestate-${id}`)) continue;
+    map.addSource(`geoestate-${id}`, { type: "geojson", data: data[id] });
   }
-} as const;
 
-const VECTOR_LAYER_IDS = ["roads", "properties", "schools", "hospitals", "markets", "government", "flood", "landcover"];
-
-function addDemoLayers(map: MapLibreMap) {
-  const sources = DEMO_GEOJSON as Record<string, any>;
-  Object.entries(sources).forEach(([id, data]) => {
-    map.addSource(`geoestate-${id}`, { type: "geojson", data });
+  map.addLayer({
+    id: "geoestate-roads", type: "line", source: "geoestate-roads",
+    paint: {
+      "line-color": ["match", ["get", "highway"], "motorway", "#b42318", "trunk", "#d97706", "primary", "#c58b18", "secondary", "#d4a72c", "tertiary", "#6b7280", "#8a938e"],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.7, 13, 1.5, 16, 3.2],
+      "line-opacity": 0.88
+    }
   });
 
-  map.addLayer({ id: "geoestate-landcover", type: "fill", source: "geoestate-landcover", paint: { "fill-color": ["match", ["get", "class"], "Built-up", "#9fc5ad", "Vegetation", "#76a97f", "Open land", "#d9c889", "#a9b8ad"], "fill-opacity": 0.24 } });
-  map.addLayer({ id: "geoestate-flood", type: "fill", source: "geoestate-flood", paint: { "fill-color": "#2e9fd0", "fill-opacity": 0.26 } });
-  map.addLayer({ id: "geoestate-properties", type: "fill", source: "geoestate-properties", paint: { "fill-color": "#0b5d3b", "fill-opacity": 0.18, "fill-outline-color": "#0b5d3b" } });
-  map.addLayer({ id: "geoestate-roads", type: "line", source: "geoestate-roads", paint: { "line-color": "#0b5d3b", "line-width": 4, "line-opacity": 0.78 } });
+  map.addLayer({
+    id: "geoestate-properties", type: "fill", source: "geoestate-properties",
+    paint: { "fill-color": "#0b5d3b", "fill-opacity": 0.12, "fill-outline-color": "#267a59" }
+  });
 
   const points = [
     ["schools", "#2563eb"], ["hospitals", "#dc2626"], ["markets", "#c2410c"], ["government", "#7c3aed"]
   ] as const;
   points.forEach(([id, color]) => {
     map.addLayer({ id: `geoestate-${id}`, type: "circle", source: `geoestate-${id}`, paint: {
-      "circle-radius": 7, "circle-color": color, "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
-      "circle-opacity": 0.95
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3.5, 14, 5.5, 17, 7],
+      "circle-color": color, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5, "circle-opacity": 0.94
     } });
   });
+
+  map.addLayer({
+    id: "geoestate-flood-fill", type: "fill", source: "geoestate-flood",
+    filter: ["==", ["geometry-type"], "Polygon"],
+    paint: { "fill-color": "#168aad", "fill-opacity": 0.10 }
+  });
+  map.addLayer({
+    id: "geoestate-flood", type: "line", source: "geoestate-flood",
+    paint: { "line-color": "#168aad", "line-width": 2.5, "line-opacity": 0.72, "line-dasharray": [2, 2] }
+  });
+
+  // ESA WorldCover 2021 is a real 10 m land-cover product. WMS is used here
+  // for visualization; analytical class extraction will be added server-side later.
+  if (!map.getSource("geoestate-landcover")) {
+    map.addSource("geoestate-landcover", {
+      type: "raster",
+      tiles: ["https://titiler.terrascope.be/wms?service=WMS&request=GetMap&version=1.3.0&layers=WORLDCOVER_2021_MAP&styles=&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true"],
+      tileSize: 256,
+      attribution: "© ESA WorldCover 2021 / Copernicus Sentinel data"
+    });
+    map.addLayer({ id: "geoestate-landcover", type: "raster", source: "geoestate-landcover", paint: { "raster-opacity": 0.34 } });
+  }
 }
 
 type Layer = { id: string; label: string; icon: React.ReactNode };
@@ -143,19 +112,37 @@ export default function GeoEstateApp() {
 
     const map = new maplibregl.Map({
       container: mapNode.current,
-      style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEMO_STYLE,
+      style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || OSM_STYLE,
       center: [initial.lng, initial.lat],
       zoom: 12.5
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
 
-    map.on("load", () => {
-      addDemoLayers(map);
+    map.on("load", async () => {
+      try {
+        const bounds = map.getBounds();
+        const params = new URLSearchParams({
+          south: String(bounds.getSouth()), west: String(bounds.getWest()),
+          north: String(bounds.getNorth()), east: String(bounds.getEast())
+        });
+        const response = await fetch(`/api/spatial?${params.toString()}`);
+        if (!response.ok) throw new Error("Spatial provider failed");
+        const data = await response.json();
+        addProviderLayers(map, data);
+      } catch (error) {
+        console.error("GeoEstate spatial layers failed", error);
+      }
     });
 
-    map.on("click", (e) => {
-      setSelected(demoLandCheck(e.lngLat.lat, e.lngLat.lng));
+    map.on("click", async (e) => {
+      try {
+        const response = await fetch(`/api/landcheck?lat=${e.lngLat.lat}&lng=${e.lngLat.lng}`);
+        if (!response.ok) throw new Error("LandCheck failed");
+        setSelected(await response.json());
+      } catch (error) {
+        console.error("GeoEstate LandCheck failed", error);
+      }
     });
 
     mapRef.current = map;
@@ -175,15 +162,20 @@ export default function GeoEstateApp() {
     setActiveLayers(prev => ({ ...prev, [id]: nextVisible }));
     const map = mapRef.current;
     if (!map || !VECTOR_LAYER_IDS.includes(id)) return;
-    const layer = map.getLayer(`geoestate-${id}`);
-    if (layer) map.setLayoutProperty(`geoestate-${id}`, "visibility", nextVisible ? "visible" : "none");
+    const layerIds = id === "flood" ? ["geoestate-flood", "geoestate-flood-fill"] : [`geoestate-${id}`];
+    for (const layerId of layerIds) {
+      if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", nextVisible ? "visible" : "none");
+    }
   }
 
   function checkCurrentLocation() {
     const map = mapRef.current;
     if (!map) return;
     const c = map.getCenter();
-    setSelected(demoLandCheck(c.lat, c.lng));
+    fetch(`/api/landcheck?lat=${c.lat}&lng=${c.lng}`)
+      .then(r => r.json())
+      .then(setSelected)
+      .catch(error => console.error("GeoEstate LandCheck failed", error));
   }
 
   return (
@@ -202,7 +194,17 @@ export default function GeoEstateApp() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") flyToOsogbo(); }}
+            onKeyDown={async e => {
+              if (e.key !== "Enter" || !search.trim()) return;
+              try {
+                const response = await fetch(`/api/search?q=${encodeURIComponent(search.trim())}`);
+                const data = await response.json();
+                const result = data.results?.[0];
+                if (result) {
+                  mapRef.current?.flyTo({ center: [result.longitude, result.latitude], zoom: 15, duration: 900 });
+                }
+              } catch (error) { console.error("GeoEstate search failed", error); }
+            }}
             placeholder="Search Osogbo, street or place..."
             aria-label="Search location"
           />
@@ -282,7 +284,7 @@ export default function GeoEstateApp() {
                 <div className="score">{selected.score}</div>
                 <div className="score-copy">
                   <strong>Spatial context score</strong>
-                  <span>Illustrative MVP scoring. Provider-backed analysis will replace demo values.</span>
+                  <span>Provider-backed spatial analysis from GeoEstate data services.</span>
                 </div>
               </div>
 

@@ -1,74 +1,56 @@
-# GeoEstate LandCheck — Osogbo MVP
+# GeoEstate LandCheck MVP — Osogbo
 
-A UI-first geospatial intelligence prototype for GeoEstate NIG Limited.
+GeoEstate LandCheck is the first pilot of the GeoEstate spatial intelligence platform.
 
-## What is included
+## Current provider-backed layers
 
-- Premium responsive GeoEstate UI
-- MapLibre map
-- Osogbo pilot starting view
-- Layer control UI
-- Click-to-LandCheck interaction
-- Spatial score card
-- Responsive mobile map experience
-- Supabase-ready environment variables
-- Provider-agnostic structure for OSM, DEM and land-cover integrations
+- **Roads:** OpenStreetMap via Overpass
+- **Properties:** OpenStreetMap building footprints (these are buildings, not legal cadastral parcels)
+- **Schools:** OpenStreetMap
+- **Hospitals:** OpenStreetMap
+- **Markets:** OpenStreetMap
+- **Government:** OpenStreetMap government/town-hall features
+- **Flood indicator:** mapped OSM waterways/water bodies as a proximity/context indicator; this is **not** an official flood hazard map
+- **Land cover:** ESA WorldCover 2021 WMS visualization
+- **Elevation:** Copernicus DEM GLO-90 through Open-Meteo's elevation API
+- **Search:** Open-Meteo geocoding API
 
-## Important
+The browser talks to GeoEstate's own `/api/*` routes. Provider calls are therefore server-side, making it possible to add caching, rate limiting, provider switching, and PostGIS analysis without rewriting the UI.
 
-The current LandCheck values are **demo values**. They are deliberately isolated in `lib/demo.ts`.
+## Important data distinction
 
-The next implementation phase should replace the demo function with server-side provider adapters:
+GeoEstate does **not** treat OSM building footprints as land ownership or cadastral parcels. Legal title, survey plans, C of O records and other authoritative land records must come from the appropriate government/authorized source.
 
-- OpenStreetMap / Overpass for roads, buildings and POIs
-- Copernicus DEM for elevation
-- Dynamic World / Earth Engine or another appropriate land-cover provider
-- PostGIS for GeoEstate caching and derived spatial data
+Likewise, the current flood indicator is contextual water-feature data, not an official flood-risk determination. A later GeoEstate flood model should combine terrain, drainage/hydrology and an authoritative flood dataset.
 
-## Run locally
+## Environment variables
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_MAP_STYLE_URL=
+OSM_OVERPASS_URL=https://overpass-api.de/api/interpreter
+```
+
+## Run
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-## Supabase
-
-Create a Supabase project and add:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
-
-Do not put service-role keys in browser-exposed variables.
-
 ## Railway
 
-Railway can deploy this as a standard Next.js application.
+Set the same environment variables in the Railway service. Do not commit Supabase service-role keys or any other secrets to GitHub.
 
-Build command:
+## Next engineering phase
 
-```bash
-npm run build
-```
-
-Start command:
-
-```bash
-npm start
-```
-
-## Suggested next milestone
-
-1. Add a FastAPI or Next.js server-side geospatial API.
-2. Add PostGIS tables in Supabase.
-3. Add OSM/Overpass adapter.
-4. Add DEM adapter.
-5. Add land-cover adapter.
-6. Replace demo scoring with transparent provider-backed calculations.
-7. Add report generation.
-8. Add authentication and saved LandChecks.
+1. Persist provider results and GeoEstate entities in Supabase/PostGIS.
+2. Add real cadastral/parcel data only from authorized sources.
+3. Calculate nearest-road/POI metrics with PostGIS.
+4. Add real slope calculation from DEM.
+5. Add an authoritative flood-risk model/dataset.
+6. Add analytical land-cover class lookup rather than only WMS visualization.
+7. Add report generation and saved LandChecks.

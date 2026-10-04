@@ -1,32 +1,30 @@
 # GeoEstate LandCheck Architecture
 
 ```text
-                 GEOESTATE LANDCHECK
-                         |
-                    GEOESTATE API
-                         |
-          +--------------+--------------+
-          |              |              |
-         OSM            DEM         LAND COVER
-      Roads/POI      Elevation       Dynamic
-      Buildings      / Terrain       World etc.
-          |              |              |
-          +--------------+--------------+
-                         |
-                    SPATIAL ENGINE
-                         |
-          +--------------+--------------+
-          |              |              |
-      Proximity      Terrain        Context
-      Analysis       Analysis       Analysis
-          |              |              |
-          +--------------+--------------+
-                         |
-                 LANDCHECK RESULT
-                         |
-              +----------+----------+
-              |                     |
-          Web report             PDF report
+                    GeoEstate LandCheck UI
+                             |
+                    Next.js / MapLibre
+                             |
+                    GeoEstate API layer
+              _____________/ | \\____________
+             /               |              \\
+            /                |               \\
+      OSM / Overpass   Elevation API    ESA WorldCover
+            |                |               |
+            +----------------+---------------+
+                             |
+                         GeoEstate
+                       Spatial Core
+                             |
+                         Supabase
+                       PostgreSQL/PostGIS
 ```
 
-The current starter intentionally uses a demo scoring layer. External provider adapters should be added behind the server-side API so the UI remains stable as data sources evolve.
+The provider layer is deliberately isolated from the UI. External services can therefore be cached, replaced, or supplemented without changing the user experience.
+
+### Current API routes
+
+- `/api/spatial` — OSM/Overpass feature extraction for the current map extent
+- `/api/elevation` — Copernicus DEM GLO-90 elevation through Open-Meteo
+- `/api/search` — place search through Open-Meteo geocoding
+- `/api/landcheck` — combines spatial features and elevation into the first provider-backed LandCheck response
