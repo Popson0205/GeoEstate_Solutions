@@ -69,3 +69,9 @@ Buildings are represented as OSM building-center features at the pilot zoom leve
 - `/api/spatial` caps viewport smaller, loads buildings only at zoom >= 14, limits result counts, and the client refetches on pan/zoom.
 - Map layers are created up front, so layer toggles work even when the provider fails.
 - Land cover WMS moved from `titiler.terrascope.be` (returned 400) to the documented `services.terrascope.be/wms/v2`.
+
+## v0.6
+
+- Land cover now uses Terrascope WMTS (pre-rendered tiles, zoom 5-14) instead of WMS, which dropped connections under load (`ERR_HTTP2_PROTOCOL_ERROR`).
+- LandCheck races Overpass mirrors with staggered starts, adds `overpass.kumi.systems`, caches results ~15 min, and logs per-mirror failure reasons.
+- `/api/debug/overpass` reports which mirrors your server can reach (remove before launch).

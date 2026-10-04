@@ -74,7 +74,9 @@ function addProviderLayers(map: MapLibreMap, data: any) {
   if (!map.getSource("geoestate-landcover")) {
     map.addSource("geoestate-landcover", {
       type: "raster",
-      tiles: ["https://services.terrascope.be/wms/v2?service=WMS&request=GetMap&version=1.3.0&layers=WORLDCOVER_2021_MAP&styles=&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true"],
+      tiles: ["https://services.terrascope.be/wmts/v2?layer=WORLDCOVER_2021_MAP&style=&tilematrixset=EPSG%3A3857&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image/png&TileMatrix=EPSG%3A3857%3A{z}&TileCol={x}&TileRow={y}"],
+      minzoom: 5,
+      maxzoom: 14,
       tileSize: 256,
       attribution: "© ESA WorldCover 2021 / Copernicus Sentinel data"
     });

@@ -6,8 +6,13 @@ export const maxDuration = 30;
 const ENDPOINTS = Array.from(new Set([
   process.env.OSM_OVERPASS_URL || "https://overpass-api.de/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ]));
+
+// Tiny in-memory cache (per server instance) keyed by ~110 m grid cell.
+const cache = new Map<string, { t: number; v: any }>();
+const TTL = 15 * 60 * 1000;
 
 const R = 6371000;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -39,14 +44,38 @@ async function fetchJson(url: string, init: RequestInit, ms: number) {
   } finally { clearTimeout(t); }
 }
 
-// Race all Overpass mirrors in parallel: first good answer wins. Hard cap 12 s total,
-// so we always answer before the Railway proxy gives up (that proxy timeout is what shows up as 502).
-function overpass(query: string) {
-  return Promise.any(ENDPOINTS.map(ep => fetchJson(ep, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "User-Agent": "GeoEstate-LandCheck/0.5", Accept: "application/json" },
-    body: new URLSearchParams({ data: query }),
-  }, 12000)));
+// Hedged requests: start the first mirror immediately and each further mirror 2.5 s later
+// (or at once if the previous one already failed). First good answer wins; hard cap ~15 s.
+function overpass(query: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const errors: string[] = [];
+    const controllers: AbortController[] = [];
+    let done = false, started = 0, failed = 0;
+    const launch = () => {
+      if (done || started >= ENDPOINTS.length) return;
+      const ep = ENDPOINTS[started++];
+      const c = new AbortController(); controllers.push(c);
+      const t = setTimeout(() => c.abort(), 12000);
+      fetch(ep, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "User-Agent": "GeoEstate-LandCheck/0.6 (contact: set-your-email)", Accept: "application/json" },
+        body: new URLSearchParams({ data: query }), cache: "no-store", signal: c.signal,
+      }).then(async r => {
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        const data = await r.json();
+        // Overpass can answer 200 with a runtime remark and no elements when it is overloaded.
+        if (data.remark && /error|timeout|out of memory/i.test(data.remark) && !(data.elements || []).length) throw new Error(`remark: ${data.remark}`);
+        if (!done) { done = true; controllers.forEach(x => x.abort()); resolve(data); }
+      }).catch(e => {
+        errors.push(`${ep} -> ${e?.name === "AbortError" ? "timeout" : e?.message || e}`);
+        failed++;
+        if (done) return;
+        if (failed >= ENDPOINTS.length) { done = true; reject(new Error(errors.join(" | "))); } else launch();
+      }).finally(() => clearTimeout(t));
+      setTimeout(launch, 2500);
+    };
+    launch();
+  });
 }
 
 async function getElevation(lat: number, lng: number): Promise<number | null> {
@@ -110,12 +139,20 @@ export async function GET(request: NextRequest) {
 
   // Run both providers concurrently; neither is allowed to throw.
   const [nearbyR, elevation] = await Promise.all([
-    getNearby(lat, lng).then(v => ({ ok: true as const, v })).catch(e => ({ ok: false as const, e })),
+    (async () => {
+      const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+      const hit = cache.get(key);
+      if (hit && Date.now() - hit.t < TTL) return hit.v;
+      const v = await getNearby(lat, lng);
+      cache.set(key, { t: Date.now(), v });
+      if (cache.size > 500) cache.delete(cache.keys().next().value as string);
+      return v;
+    })().then(v => ({ ok: true as const, v })).catch(e => ({ ok: false as const, e })),
     getElevation(lat, lng),
   ]);
 
   if (!nearbyR.ok) {
-    console.error("LandCheck Overpass failed:", (nearbyR.e as any)?.errors?.map((x: any) => x.message) ?? nearbyR.e);
+    console.error("LandCheck Overpass failed:", (nearbyR.e as any)?.message ?? nearbyR.e);
     // Honest degraded answer instead of a 502 and instead of invented scores.
     return NextResponse.json({
       error: "OpenStreetMap data is temporarily unavailable. Please try again in a moment.",
