@@ -60,8 +60,7 @@ export default function GeoEstateApp() {
       container: mapNode.current,
       style: process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEMO_STYLE,
       center: [initial.lng, initial.lat],
-      zoom: 12.5,
-      attributionControl: true
+      zoom: 12.5
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "top-right");
