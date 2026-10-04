@@ -45,8 +45,8 @@ function addProviderLayers(map: MapLibreMap, data: any) {
   });
 
   map.addLayer({
-    id: "geoestate-properties", type: "fill", source: "geoestate-properties",
-    paint: { "fill-color": "#0b5d3b", "fill-opacity": 0.12, "fill-outline-color": "#267a59" }
+    id: "geoestate-properties", type: "circle", source: "geoestate-properties", minzoom: 14,
+    paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 1.2, 17, 3.5], "circle-color": "#0b5d3b", "circle-opacity": 0.45 }
   });
 
   const points = [

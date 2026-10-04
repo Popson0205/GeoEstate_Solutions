@@ -75,3 +75,16 @@ Buildings are represented as OSM building-center features at the pilot zoom leve
 - Land cover now uses Terrascope WMTS (pre-rendered tiles, zoom 5-14) instead of WMS, which dropped connections under load (`ERR_HTTP2_PROTOCOL_ERROR`).
 - LandCheck races Overpass mirrors with staggered starts, adds `overpass.kumi.systems`, caches results ~15 min, and logs per-mirror failure reasons.
 - `/api/debug/overpass` reports which mirrors your server can reach (remove before launch).
+
+## v0.7 — local OSM snapshot (no live Overpass dependency)
+
+Public Overpass servers are unreliable from cloud hosts, so the pilot now reads a local snapshot.
+
+1. On your own computer (Node 18+): `npm run fetch:osm`  (writes `data/osogbo.json`; takes a few minutes, retries automatically)
+2. Commit `data/osogbo.json` and redeploy to Railway.
+3. `/api/spatial` and `/api/landcheck` use the file for anything inside its bounding box; live Overpass is only a fallback outside it / if the file is missing.
+
+If the script cannot reach any Overpass mirror either, use a Geofabrik extract instead:
+download `nigeria-latest.osm.pbf` from download.geofabrik.de, clip it with
+`osmium extract -b 4.45,7.68,4.68,7.90 nigeria-latest.osm.pbf -o osogbo.osm.pbf`,
+then load it into PostGIS with osm2pgsql (the planned Supabase/PostGIS phase).

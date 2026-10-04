@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { featuresFromSnapshot } from "@/lib/osm";
 
 const OVERPASS_URL = process.env.OSM_OVERPASS_URL || "https://overpass-api.de/api/interpreter";
 
@@ -73,6 +74,10 @@ export async function GET(request: NextRequest) {
   const bbox = `${south},${west},${north},${east}`;
   const zoom = Number(searchParams.get("zoom") || 0);
   const includeBuildings = zoom >= 14;
+
+  // Preferred path: local snapshot (no external dependency, instant).
+  const local = featuresFromSnapshot({ south, west, north, east }, Number(searchParams.get("zoom") || 0));
+  if (local) return NextResponse.json({ provider: "local-snapshot", bbox: { south, west, north, east }, ...local }, { headers: { "Cache-Control": "s-maxage=600" } });
 
   // Geometry is only requested for roads. Buildings and POIs use their
   // centers at this zoom level, which keeps the response small and fast.

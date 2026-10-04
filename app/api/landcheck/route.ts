@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { nearbyFromSnapshot } from "@/lib/osm";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -141,9 +142,11 @@ export async function GET(request: NextRequest) {
   const [nearbyR, elevation] = await Promise.all([
     (async () => {
       const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+      const local = nearbyFromSnapshot(lat, lng);
+      if (local) return local;
       const hit = cache.get(key);
       if (hit && Date.now() - hit.t < TTL) return hit.v;
-      const v = await getNearby(lat, lng);
+      const v = nearbyFromSnapshot(lat, lng) ?? await getNearby(lat, lng);
       cache.set(key, { t: Date.now(), v });
       if (cache.size > 500) cache.delete(cache.keys().next().value as string);
       return v;
