@@ -13,6 +13,9 @@ export type LandCheckResult = {
   landCover: string;
   elevation: string;
   slope: string;
+  educationCount?: number | null;
+  educationNearby?: { name: string; kind: string; d: number }[];
+  source?: string;
 };
 
 export function demoLandCheck(lat: number, lng: number): LandCheckResult {

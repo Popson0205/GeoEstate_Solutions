@@ -105,3 +105,9 @@ Rebuild or change area (e.g. another state):
 `node scripts/build-snapshot.mjs --roads road.geojson --edu education_facilities.geojson --health GRID3_....geojson --adm1 geoBoundaries-NGA-ADM1.geojson --adm2 geoBoundaries-NGA-ADM2.geojson --state Osun`
 Not in these datasets (so empty/proxied): buildings (development score uses road density within 1 km), markets, government offices, water/flood lines. `scripts/fetch-osm.mjs` can still add those from Overpass.
 Nearest "hospital" is now the nearest GRID3 health facility of any level (label shows Primary/Secondary/Tertiary).
+
+## v0.10 — education facilities + working report
+
+- Education layer rebuilt from the HOT/OSM file: schools, kindergartens, colleges and universities, including features tagged only `building=school`; name falls back to `name_en`/`name_latin`; near-duplicates (node + building polygon) merged; kind, operator type, capacity and LGA stored. Refresh just this layer with `node scripts/patch-education.mjs education_facilities.geojson`.
+- LandCheck now returns the number of education facilities within 2 km and the 8 nearest (name, type, distance).
+- **Generate report** now works: opens a printable report in a new tab (Print / Save as PDF). Allow pop-ups if the browser blocks it.

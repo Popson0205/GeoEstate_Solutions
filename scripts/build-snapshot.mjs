@@ -70,10 +70,26 @@ function schools() {
     if (!c) { const b = bboxOf(ptsOf(g)); c = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]; }
     const [x, y] = c; if (!inBox(x, y)) continue;
     const p = f.properties || {};
-    if (p.amenity && !keep.has(p.amenity)) continue;
-    res.push({ name: p.name || p.name_latin || "", kind: p.amenity || "", lon: r5(x), lat: r5(y) });
+    // Many features carry only building=school (no amenity tag), so fall back to it.
+    const kind = p.amenity || p.building || "";
+    if (!keep.has(kind)) continue;
+    // Unnamed building=university/college polygons are campus buildings, not separate institutions.
+    if (!p.amenity && (kind === "university" || kind === "college") && !(p.name || p.name_en || p.name_latin)) continue;
+    res.push({
+      name: p.name || p.name_en || p.name_latin || "", kind,
+      op: p.operator_type || "", cap: p.capacity_persons ? Number(p.capacity_persons) || undefined : undefined,
+      lga: p.adm2_name || "", lon: r5(x), lat: r5(y),
+    });
   }
-  console.log("Schools:", res.length); return res;
+  // Drop duplicates (a school node plus its building polygon): same kind within ~30 m, keep the named one.
+  res.sort((a, b) => (b.name ? 1 : 0) - (a.name ? 1 : 0));
+  const out = [], seen = new Map();
+  for (const r of res) {
+    const k = `${Math.round(r.lon * 3000)},${Math.round(r.lat * 3000)}`;
+    if (seen.has(k)) continue;
+    seen.set(k, 1); out.push(r);
+  }
+  console.log("Education facilities:", out.length, "(from", res.length, "before de-duplication)"); return out;
 }
 function health() {
   const d = readJson(healthPath);

@@ -181,6 +181,8 @@ export async function GET(request: NextRequest) {
     nearestSchool: fmt(n.schoolD, n.schoolName, "No mapped school nearby"),
     nearestHospital: fmt(n.hospD, n.hospName, "No mapped hospital nearby"),
     elevation: elevation == null ? "Unavailable" : `${Math.round(elevation)} m`,
+    educationCount: (n as any).eduCount2km ?? null,
+    educationNearby: (n as any).eduNearby ?? [],
     slope: "Not yet calculated",
     landCover: landCoverAt(lat, lng) ?? "Not available",
     source: "GRID3 health, HOT/OSM schools, national roads, geoBoundaries + Copernicus DEM",

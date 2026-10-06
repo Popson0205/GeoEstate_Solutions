@@ -8,6 +8,7 @@ import {
   Crosshair, Menu, ChevronRight
 } from "lucide-react";
 import type { LandCheckResult } from "@/lib/demo";
+import { buildReportHtml } from "@/lib/report";
 
 const VECTOR_LAYER_IDS = ["roads", "properties", "schools", "hospitals", "markets", "government", "flood", "landcover"];
 
@@ -197,6 +198,14 @@ export default function GeoEstateApp() {
     }
   }
 
+  function generateReport() {
+    if (!selected) return;
+    // Open the tab synchronously inside the click so popup blockers allow it.
+    const w = window.open("", "_blank");
+    if (!w) { setNotice("Your browser blocked the report window. Allow pop-ups for this site and try again."); return; }
+    w.document.open(); w.document.write(buildReportHtml(selected)); w.document.close();
+  }
+
   function checkCurrentLocation() {
     const map = mapRef.current;
     if (!map) return;
@@ -335,10 +344,11 @@ export default function GeoEstateApp() {
                 <div className="metric"><label>Nearest school</label><strong>{selected.nearestSchool}</strong></div>
                 <div className="metric"><label>Elevation</label><strong>{selected.elevation}</strong></div>
                 <div className="metric"><label>Land cover</label><strong>{selected.landCover}</strong></div>
+                <div className="metric"><label>Schools within 2 km</label><strong>{selected.educationCount ?? "n/a"}</strong></div>
               </div>
 
               <div className="card-actions">
-                <button className="btn-solid"><FileText size={14} style={{ verticalAlign: "middle", marginRight: 6 }}/>Generate report</button>
+                <button className="btn-solid" onClick={generateReport}><FileText size={14} style={{ verticalAlign: "middle", marginRight: 6 }}/>Generate report</button>
                 <button className="btn-outline" onClick={() => setSelected(null)}>Close</button>
               </div>
             </div>
