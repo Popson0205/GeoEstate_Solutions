@@ -70,7 +70,7 @@ export function featuresFromSnapshot(b: { south: number; west: number; north: nu
   if (!covers(cLat, cLng)) return null;
   const inBox = (lon: number, lat: number) => lon >= b.west && lon <= b.east && lat >= b.south && lat <= b.north;
   const fc = (features: any[]) => ({ type: "FeatureCollection", features });
-  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "", cat: p.cat || "", lvl: p.lvl || "", type: p.type || "", op: p.op || "", lga: p.lga || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
+  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "", cat: p.cat || "", lvl: p.lvl || "", type: p.type || "", op: p.op || "", lga: p.lga || "", cap: p.cap || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
   const major = /^(motorway|trunk|primary|secondary|tertiary)$/;
 
   const roads: any[] = [];
@@ -92,8 +92,8 @@ export function featuresFromSnapshot(b: { south: number; west: number; north: nu
     if (w.k === "poly" && w.g.length >= 4) {
       const g = w.g.slice(); const f = g[0], l = g[g.length - 1];
       if (f[0] !== l[0] || f[1] !== l[1]) g.push(f);
-      flood.push({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [g] } });
-    } else flood.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: w.g } });
+      flood.push({ type: "Feature", properties: { name: w.n || "" }, geometry: { type: "Polygon", coordinates: [g] } });
+    } else flood.push({ type: "Feature", properties: { name: w.n || "" }, geometry: { type: "LineString", coordinates: w.g } });
   }
   const pts = (arr: any[]) => fc(arr.filter(p => inBox(p.lon, p.lat)).map(pt));
   return {
