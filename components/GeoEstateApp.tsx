@@ -39,8 +39,8 @@ function addProviderLayers(map: MapLibreMap, data: any) {
   map.addLayer({
     id: "geoestate-roads", type: "line", source: "geoestate-roads",
     paint: {
-      "line-color": ["match", ["get", "highway"], "motorway", "#b42318", "trunk", "#d97706", "primary", "#c58b18", "secondary", "#d4a72c", "tertiary", "#6b7280", "#8a938e"],
-      "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.7, 13, 1.5, 16, 3.2],
+      "line-color": ["match", ["get", "highway"], ["motorway", "motorway_link"], "#b42318", ["trunk", "trunk_link"], "#d97706", ["primary", "primary_link"], "#c58b18", ["secondary", "secondary_link"], "#d4a72c", ["tertiary", "tertiary_link"], "#4b5563", ["residential", "unclassified", "service"], "#6b7280", "#a3aaa6"],
+      "line-width": ["interpolate", ["linear"], ["zoom"], 10, ["match", ["get", "highway"], ["motorway", "trunk", "primary"], 1.6, 0.6], 13, ["match", ["get", "highway"], ["motorway", "trunk", "primary", "secondary"], 2.4, 1.1], 16, ["match", ["get", "highway"], ["motorway", "trunk", "primary", "secondary"], 5, 2.6]],
       "line-opacity": 0.88
     }
   });
@@ -50,15 +50,26 @@ function addProviderLayers(map: MapLibreMap, data: any) {
     paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 1.2, 17, 3.5], "circle-color": "#0b5d3b", "circle-opacity": 0.45 }
   });
 
-  const points = [
-    ["schools", "#2563eb"], ["hospitals", "#dc2626"], ["markets", "#c2410c"], ["government", "#7c3aed"]
-  ] as const;
-  points.forEach(([id, color]) => {
-    map.addLayer({ id: `geoestate-${id}`, type: "circle", source: `geoestate-${id}`, paint: {
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3.5, 14, 5.5, 17, 7],
-      "circle-color": color, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5, "circle-opacity": 0.94
-    } });
-  });
+  const circle = (id: string, color: any, radius: any, extra: any = {}) =>
+    map.addLayer({ id: `geoestate-${id}`, type: "circle", source: `geoestate-${id}`, ...extra, paint: {
+      "circle-radius": radius, "circle-color": color, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5, "circle-opacity": 0.94 } });
+  const zr = (a: number, b: number, c: number) => ["interpolate", ["linear"], ["zoom"], 10, a, 14, b, 17, c];
+
+  // Education: colour by level (derived from the facility name). Campus buildings are tiny and only appear from zoom 14.
+  // (MapLibre only allows "zoom" as the input of a top-level interpolate, so the per-category sizes sit inside the stops.)
+  const eduSize = (a: number, b: number, c: number, camp: [number, number, number]) => ["interpolate", ["linear"], ["zoom"],
+    10, ["case", ["==", ["get", "cat"], "Campus building"], 0, ["==", ["get", "cat"], "Tertiary"], a + 1, a],
+    13.9, ["case", ["==", ["get", "cat"], "Campus building"], 0, ["==", ["get", "cat"], "Tertiary"], b + 1.5, b],
+    14, ["case", ["==", ["get", "cat"], "Campus building"], camp[0], ["==", ["get", "cat"], "Tertiary"], b + 1.5, b],
+    17, ["case", ["==", ["get", "cat"], "Campus building"], camp[2], ["==", ["get", "cat"], "Tertiary"], c + 2, c]];
+  circle("schools", ["match", ["get", "cat"],
+    "Nursery", "#f59e0b", "Primary", "#2563eb", "Secondary", "#7c3aed", "Tertiary", "#0f766e", "Campus building", "#94a3b8", "#64748b"],
+    eduSize(3.5, 5.5, 7, [3, 3.5, 4.5]));
+  // Health: colour and size by GRID3 facility level.
+  circle("hospitals", ["match", ["get", "lvl"], "Tertiary", "#7f1d1d", "Secondary", "#dc2626", "Primary", "#f87171", "#9ca3af"],
+    ["match", ["get", "lvl"], "Tertiary", 7, "Secondary", 5.5, 3.8]);
+  circle("markets", "#c2410c", zr(3.5, 5.5, 7));
+  circle("government", "#7c3aed", zr(3.5, 5.5, 7));
 
   map.addLayer({
     id: "geoestate-flood-fill", type: "fill", source: "geoestate-flood",
@@ -79,6 +90,7 @@ async function addLandcover(map: MapLibreMap) {
     const r = await fetch("/api/landcover/meta");
     if (!r.ok) return;
     const m = await r.json();
+    if (!m.available || !m.bounds) return; // overlay files not generated yet: skip quietly
     const b = m.bounds;
     if (map.getSource("geoestate-landcover")) return;
     map.addSource("geoestate-landcover", {
@@ -94,8 +106,8 @@ type Layer = { id: string; label: string; icon: React.ReactNode };
 const layers: Layer[] = [
   { id: "roads", label: "Roads", icon: <Route size={15}/> },
   { id: "properties", label: "Properties", icon: <Building2 size={15}/> },
-  { id: "schools", label: "Schools", icon: <GraduationCap size={15}/> },
-  { id: "hospitals", label: "Hospitals", icon: <Hospital size={15}/> },
+  { id: "schools", label: "Education", icon: <GraduationCap size={15}/> },
+  { id: "hospitals", label: "Health facilities", icon: <Hospital size={15}/> },
   { id: "markets", label: "Markets", icon: <ShoppingBag size={15}/> },
   { id: "government", label: "Government", icon: <Landmark size={15}/> },
   { id: "flood", label: "Flood indicator", icon: <Droplets size={15}/> },
@@ -109,6 +121,7 @@ export default function GeoEstateApp() {
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>(
     Object.fromEntries(layers.map(x => [x.id, true]))
   );
@@ -142,6 +155,7 @@ export default function GeoEstateApp() {
         for (const id of ["roads", "properties", "schools", "hospitals", "markets", "government", "flood"]) {
           (map.getSource(`geoestate-${id}`) as maplibregl.GeoJSONSource | undefined)?.setData(data[id]);
         }
+        if (data.counts) setCounts(data.counts);
         if (data.providerStatus === "temporarily_unavailable") {
           setNotice("Live OpenStreetMap layers are temporarily unavailable. Pan the map to retry.");
         } else setNotice(null);
@@ -162,7 +176,24 @@ export default function GeoEstateApp() {
       loadTimer = setTimeout(loadSpatial, 600);
     });
 
+    // Click a school / health facility dot to see its attributes (so names and types can be checked on the map).
+    const esc = (v: any) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+    const poiLayers = ["geoestate-schools", "geoestate-hospitals", "geoestate-markets", "geoestate-government"];
+    for (const id of poiLayers) {
+      map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", id, () => { map.getCanvas().style.cursor = ""; });
+    }
     map.on("click", async (e) => {
+      const hit = map.getLayer("geoestate-schools") ? map.queryRenderedFeatures(e.point, { layers: poiLayers.filter(l => map.getLayer(l)) })[0] : undefined;
+      if (hit) {
+        const p: any = hit.properties || {};
+        const isEdu = hit.layer.id === "geoestate-schools", isHealth = hit.layer.id === "geoestate-hospitals";
+        const rows = isEdu ? [["Level", p.cat], ["Type", p.kind], ["Operator", p.op], ["LGA", p.lga]]
+          : isHealth ? [["Level", p.lvl], ["Type", p.type]] : [];
+        new maplibregl.Popup({ offset: 10, closeButton: true }).setLngLat((hit.geometry as any).coordinates)
+          .setHTML(`<strong>${esc(p.name || "Unnamed")}</strong>` + rows.filter(r => r[1]).map(r => `<div style="font-size:12px;color:#475569">${r[0]}: ${esc(r[1])}</div>`).join("")).addTo(map);
+        return;
+      }
       try {
         const response = await fetch(`/api/landcheck?lat=${e.lngLat.lat}&lng=${e.lngLat.lng}`);
         const body = await response.json().catch(() => ({}));
@@ -277,11 +308,23 @@ export default function GeoEstateApp() {
                     <span className={`layer-dot ${activeLayers[layer.id] ? "active" : ""}`}></span>
                     {layer.icon}
                     {layer.label}
+                    {layer.id !== "landcover" && counts[layer.id] === 0 && <span style={{ fontSize: 10, fontWeight: 600, color: "#9a3412", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 6, padding: "1px 5px" }}>no data</span>}
+                    {layer.id !== "landcover" && counts[layer.id] > 0 && <span style={{ fontSize: 10, fontWeight: 500, color: "#6b7a72" }}>{Math.round(counts[layer.id]).toLocaleString()}</span>}
                   </div>
                   <div className={`toggle ${activeLayers[layer.id] ? "on" : ""}`}><span/></div>
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="landcheck-cta" style={{ marginTop: 10 }}>
+            <small>Legend</small>
+            {[["Nursery", "#f59e0b"], ["Primary school", "#2563eb"], ["Secondary school", "#7c3aed"], ["College / university", "#0f766e"], ["Education (level unknown)", "#64748b"], ["Campus building (zoom 14+)", "#94a3b8"],
+              ["Health: tertiary", "#7f1d1d"], ["Health: secondary", "#dc2626"], ["Health: primary", "#f87171"]].map(([l, c]) => (
+              <div key={l} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginTop: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: c, display: "inline-block", border: "1.5px solid #fff", boxShadow: "0 0 0 1px #cbd5e1" }} />{l}
+              </div>
+            ))}
           </div>
 
           <div className="landcheck-cta">

@@ -1,6 +1,7 @@
 // Refresh only the education layer of an existing data/snapshot.json (no road/health files needed).
 //   node scripts/patch-education.mjs education_facilities.geojson
 import fs from "node:fs";
+import { classifyEducation } from "./edu-classify.mjs";
 const src = process.argv[2]; if (!src) { console.error("Usage: node scripts/patch-education.mjs education_facilities.geojson"); process.exit(1); }
 const snap = JSON.parse(fs.readFileSync("data/snapshot.json", "utf8"));
 const { west: W, south: S, east: E, north: N } = snap.bbox;
@@ -17,7 +18,9 @@ for (const f of JSON.parse(fs.readFileSync(src, "utf8")).features) {
   if (!keep.has(kind)) continue;
     // Unnamed building=university/college polygons are campus buildings, not separate institutions.
     if (!p.amenity && (kind === "university" || kind === "college") && !(p.name || p.name_en || p.name_latin)) continue;
-  res.push({ name: p.name || p.name_en || p.name_latin || "", kind, op: p.operator_type || "", cap: p.capacity_persons ? Number(p.capacity_persons) || undefined : undefined, lga: p.adm2_name || "", lon: r5(x), lat: r5(y) });
+  const nm = p.name || p.name_en || p.name_latin || "";
+    const cl = classifyEducation(nm, kind);
+    res.push({ name: nm, kind: cl.kind, cat: cl.cat, op: p.operator_type || "", cap: p.capacity_persons ? Number(p.capacity_persons) || undefined : undefined, lga: p.adm2_name || "", lon: r5(x), lat: r5(y) });
 }
 res.sort((a, b) => (b.name ? 1 : 0) - (a.name ? 1 : 0));
 const seen = new Set(), out = [];

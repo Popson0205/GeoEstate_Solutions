@@ -60,6 +60,12 @@ export async function GET(request: NextRequest) {
   // Keep public Overpass requests small enough for a browser map viewport.
   // The initial Osogbo viewport can otherwise ask for tens of thousands of
   // building/road geometries and trigger a provider timeout (502 on Railway).
+  // Local snapshot is served from memory, so it can use the full viewport (capped generously).
+  const full = { south, west, north, east };
+  const fcLat = (south + north) / 2, fcLng = (west + east) / 2;
+  const fLat = Math.min(north - south, 0.6), fLng = Math.min(east - west, 0.8);
+  const fullBox = { south: fcLat - fLat / 2, north: fcLat + fLat / 2, west: fcLng - fLng / 2, east: fcLng + fLng / 2 };
+  void full;
   const centerLat = (south + north) / 2;
   const centerLng = (west + east) / 2;
   const maxLatSpan = 0.06;
@@ -76,8 +82,8 @@ export async function GET(request: NextRequest) {
   const includeBuildings = zoom >= 14;
 
   // Preferred path: local snapshot (no external dependency, instant).
-  const local = featuresFromSnapshot({ south, west, north, east }, Number(searchParams.get("zoom") || 0));
-  if (local) return NextResponse.json({ provider: "local-snapshot", bbox: { south, west, north, east }, ...local }, { headers: { "Cache-Control": "s-maxage=600" } });
+  const local = featuresFromSnapshot(fullBox, Number(searchParams.get("zoom") || 0));
+  if (local) return NextResponse.json({ provider: "local-snapshot", bbox: fullBox, ...local }, { headers: { "Cache-Control": "s-maxage=600" } });
 
   // Geometry is only requested for roads. Buildings and POIs use their
   // centers at this zoom level, which keeps the response small and fast.

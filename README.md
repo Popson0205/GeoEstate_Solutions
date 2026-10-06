@@ -111,3 +111,12 @@ Nearest "hospital" is now the nearest GRID3 health facility of any level (label 
 - Education layer rebuilt from the HOT/OSM file: schools, kindergartens, colleges and universities, including features tagged only `building=school`; name falls back to `name_en`/`name_latin`; near-duplicates (node + building polygon) merged; kind, operator type, capacity and LGA stored. Refresh just this layer with `node scripts/patch-education.mjs education_facilities.geojson`.
 - LandCheck now returns the number of education facilities within 2 km and the 8 nearest (name, type, distance).
 - **Generate report** now works: opens a printable report in a new tab (Print / Save as PDF). Allow pop-ups if the browser blocks it.
+
+## v0.11 — symbology, names, land cover
+
+- **Education names/types:** `scripts/edu-classify.mjs` corrects OSM tagging by name (e.g. "Bowen University" tagged as a school becomes a university; nurseries; "Staff Primary School" stays a school), derives a level (Nursery / Primary / Secondary / Tertiary) and flags campus buildings (faculty blocks, labs, halls) so they are not counted as schools.
+- **Symbology:** Education is coloured by level, Health facilities by GRID3 level (tertiary / secondary / primary, sized accordingly), roads by class incl. `_link`, `service` and `track`. A legend is in the sidebar. Click a school or health dot to see its name, level, type and LGA.
+- **Layer panel:** each layer shows its feature count, or "no data" when the snapshot has none (Properties, Markets, Government, Flood).
+- **Viewport:** `/api/spatial` no longer cuts the viewport to 0.06 x 0.09 degrees when serving the local snapshot, so layers fill the whole screen. Roads of all classes show from zoom 12.
+- **Land cover:** `/api/landcover/meta` returns 200 `{available:false}` instead of 404 when the overlay files are missing, and the client skips it quietly. To get the overlay, run `bash scripts/prepare-worldcover.sh` (needs GDAL and internet) and commit `public/worldcover-osogbo.png` and `data/worldcover_osogbo.asc`.
+- `scripts/fetch-osm.mjs` now **merges** markets, government, water and buildings into the existing `data/snapshot.json` instead of overwriting it (use `--overwrite` for the old behaviour).

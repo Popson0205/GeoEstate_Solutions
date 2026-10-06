@@ -4,6 +4,7 @@
 //        --adm2 geoBoundaries-NGA-ADM2.geojson [--state Osun] [--bbox W,S,E,N]
 // Default area = bounding box of the --state polygon (Osun). The big road file is streamed, so memory stays low.
 import fs from "node:fs";
+import { classifyEducation } from "./edu-classify.mjs";
 
 const arg = (k, d) => { const i = process.argv.indexOf("--" + k); return i > -1 ? process.argv[i + 1] : d; };
 const need = k => { const v = arg(k); if (!v) { console.error(`Missing --${k}`); process.exit(1); } return v; };
@@ -75,8 +76,9 @@ function schools() {
     if (!keep.has(kind)) continue;
     // Unnamed building=university/college polygons are campus buildings, not separate institutions.
     if (!p.amenity && (kind === "university" || kind === "college") && !(p.name || p.name_en || p.name_latin)) continue;
-    res.push({
-      name: p.name || p.name_en || p.name_latin || "", kind,
+    const nm = p.name || p.name_en || p.name_latin || "";
+    const cl = classifyEducation(nm, kind);
+    res.push({ name: nm, kind: cl.kind, cat: cl.cat,
       op: p.operator_type || "", cap: p.capacity_persons ? Number(p.capacity_persons) || undefined : undefined,
       lga: p.adm2_name || "", lon: r5(x), lat: r5(y),
     });

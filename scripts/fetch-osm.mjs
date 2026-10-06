@@ -1,6 +1,6 @@
 // One-time (or occasional) download of OpenStreetMap data for the Osogbo pilot area.
 // Run on your own computer:   node scripts/fetch-osm.mjs
-// Output: data/snapshot.json  -> commit it to GitHub so Railway deploys it with the app.
+// Output: merges markets, government, water and buildings into the existing data/snapshot.json (use --overwrite to replace the whole file) -> commit it to GitHub so Railway deploys it with the app.
 // Node 18+ required. Takes a few minutes; it retries and rotates mirrors automatically.
 import fs from "node:fs";
 
@@ -88,6 +88,18 @@ out center qt;`;
   await sleep(2000); // be polite to the public servers
 }
 
+// If a snapshot already exists (built from the national datasets), only ADD the layers those datasets lack
+// (markets, government, water, buildings). Roads, education, health and boundaries are kept.
+const existingPath = "data/snapshot.json";
+if (fs.existsSync(existingPath) && !process.argv.includes("--overwrite")) {
+  const snap = JSON.parse(fs.readFileSync(existingPath, "utf8"));
+  snap.markets = [...points.markets.values()]; snap.government = [...points.government.values()];
+  snap.water = [...water.values()]; snap.buildings = [...buildings.values()].flat();
+  snap.extrasBbox = BBOX;
+  fs.writeFileSync(existingPath, JSON.stringify(snap));
+  console.log(`Merged into existing snapshot: ${snap.markets.length} markets, ${snap.government.length} government, ${snap.water.length} water features, ${snap.buildings.length / 2} buildings (within the Osogbo box only).`);
+  process.exit(0);
+}
 const out = {
   source: "OpenStreetMap contributors (ODbL) via Overpass",
   fetchedAt: new Date().toISOString(),

@@ -47,11 +47,13 @@ export function nearbyFromSnapshot(lat: number, lng: number) {
     for (const p of arr) { const d = distPt(lat, lng, p.lon, p.lat); if (d < best) { best = d; name = p.name || fallback; } }
     return { d: best, name };
   };
-  const sc = nearest(s.schools, "School");
+  // Campus buildings (faculty blocks, labs...) are not separate schools, so they are excluded from school metrics.
+  const instSchools = (s.schools as any[]).filter(p => p.kind !== "campus");
+  const sc = nearest(instSchools, "School");
   const ho = nearest((s.hospitals as any[]).map(h => ({ ...h, name: (h.name || "Health facility") + (h.lvl ? ` (${h.lvl})` : "") })), "Health facility");
   const KIND: Record<string, string> = { school: "School", kindergarten: "Kindergarten", college: "College", university: "University" };
-  const edu = (s.schools as any[])
-    .map(p => ({ name: p.name || `${KIND[p.kind] || "Education facility"} (unnamed)`, kind: KIND[p.kind] || "School", d: distPt(lat, lng, p.lon, p.lat) }))
+  const edu = instSchools
+    .map(p => ({ name: p.name || `${KIND[p.kind] || "Education facility"} (unnamed)`, kind: p.cat && p.cat !== "School" ? `${p.cat} ${(KIND[p.kind] || "School").toLowerCase()}` : (KIND[p.kind] || "School"), d: distPt(lat, lng, p.lon, p.lat) }))
     .filter(p => p.d <= 2000).sort((a, b) => a.d - b.d);
   const eduNearby = edu.slice(0, 8).map(p => ({ ...p, d: Math.round(p.d) }));
   let buildings = 0;
@@ -68,15 +70,15 @@ export function featuresFromSnapshot(b: { south: number; west: number; north: nu
   if (!covers(cLat, cLng)) return null;
   const inBox = (lon: number, lat: number) => lon >= b.west && lon <= b.east && lat >= b.south && lat <= b.north;
   const fc = (features: any[]) => ({ type: "FeatureCollection", features });
-  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
+  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "", cat: p.cat || "", lvl: p.lvl || "", type: p.type || "", op: p.op || "", lga: p.lga || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
   const major = /^(motorway|trunk|primary|secondary|tertiary)$/;
 
   const roads: any[] = [];
   for (const r of s.roads) {
-    if (zoom < 13 && !major.test(r.h)) continue;
+    if (zoom < 12 && !major.test(r.h)) continue;
     if (!r.g.some((c: number[]) => inBox(c[0], c[1]))) continue;
     roads.push({ type: "Feature", properties: { name: r.n, highway: r.h }, geometry: { type: "LineString", coordinates: r.g } });
-    if (roads.length >= 4000) break;
+    if (roads.length >= 8000) break;
   }
   const props: any[] = [];
   if (zoom >= 14) {
@@ -98,6 +100,10 @@ export function featuresFromSnapshot(b: { south: number; west: number; north: nu
     source: "OpenStreetMap snapshot " + s.fetchedAt,
     roads: fc(roads), properties: fc(props), flood: fc(flood),
     schools: pts(s.schools), hospitals: pts(s.hospitals), markets: pts(s.markets), government: pts(s.government),
+    counts: {
+      roads: s.roads.length, properties: (s.buildings || []).length / 2, schools: s.schools.length, hospitals: s.hospitals.length,
+      markets: s.markets.length, government: s.government.length, flood: s.water.length,
+    },
   };
 }
 
