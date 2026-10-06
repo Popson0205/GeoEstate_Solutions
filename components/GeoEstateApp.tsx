@@ -9,11 +9,15 @@ import {
 } from "lucide-react";
 import type { LandCheckResult } from "@/lib/demo";
 import { buildReportHtml } from "@/lib/report";
+import { iconDataUri, loadMapIcons, LAYER_GROUPS, HIT_GROUPS, buildPopupHtml, ROAD_COLORS, FLOOD_COLOR } from "@/lib/mapSymbols";
 
-const VECTOR_LAYER_IDS = ["roads", "properties", "schools", "hospitals", "markets", "government", "flood", "landcover"];
+// Text labels need a glyph (font) server. Override both via env if you host your own fonts.
+const GLYPHS_URL = process.env.NEXT_PUBLIC_GLYPHS_URL || "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf";
+const LABEL_FONT = [process.env.NEXT_PUBLIC_LABEL_FONT || "Open Sans Regular"];
 
 const OSM_STYLE = {
   version: 8,
+  glyphs: GLYPHS_URL,
   sources: {
     osm: {
       type: "raster",
@@ -35,52 +39,79 @@ function addProviderLayers(map: MapLibreMap, data: any) {
     if (map.getSource(`geoestate-${id}`)) continue;
     map.addSource(`geoestate-${id}`, { type: "geojson", data: data?.[id] ?? { type: "FeatureCollection", features: [] } });
   }
+  const hasName = ["all", ["has", "name"], ["!=", ["get", "name"], ""], ["!=", ["get", "name"], "Unnamed"]];
+  const halo = { "text-halo-color": "#ffffff", "text-halo-width": 1.6, "text-halo-blur": 0.4 };
 
+  // ---- Flood indicator (bottom): blue translucent fill + dashed outline, labelled by name when it has one
+  map.addLayer({ id: "geoestate-flood-fill", type: "fill", source: "geoestate-flood", filter: ["==", ["geometry-type"], "Polygon"],
+    paint: { "fill-color": FLOOD_COLOR, "fill-opacity": 0.14 } });
+  map.addLayer({ id: "geoestate-flood", type: "line", source: "geoestate-flood",
+    paint: { "line-color": FLOOD_COLOR, "line-width": 2.5, "line-opacity": 0.8, "line-dasharray": [2, 2] } });
+
+  // ---- Roads: coloured by class, name painted along the line
   map.addLayer({
     id: "geoestate-roads", type: "line", source: "geoestate-roads",
     paint: {
-      "line-color": ["match", ["get", "highway"], ["motorway", "motorway_link"], "#b42318", ["trunk", "trunk_link"], "#d97706", ["primary", "primary_link"], "#c58b18", ["secondary", "secondary_link"], "#d4a72c", ["tertiary", "tertiary_link"], "#4b5563", ["residential", "unclassified", "service"], "#6b7280", "#a3aaa6"],
+      "line-color": ["match", ["get", "highway"], ["motorway", "motorway_link"], ROAD_COLORS.motorway, ["trunk", "trunk_link"], ROAD_COLORS.trunk, ["primary", "primary_link"], ROAD_COLORS.primary, ["secondary", "secondary_link"], ROAD_COLORS.secondary, ["tertiary", "tertiary_link"], ROAD_COLORS.tertiary, ["residential", "unclassified", "service"], ROAD_COLORS.residential, "#a3aaa6"],
       "line-width": ["interpolate", ["linear"], ["zoom"], 10, ["match", ["get", "highway"], ["motorway", "trunk", "primary"], 1.6, 0.6], 13, ["match", ["get", "highway"], ["motorway", "trunk", "primary", "secondary"], 2.4, 1.1], 16, ["match", ["get", "highway"], ["motorway", "trunk", "primary", "secondary"], 5, 2.6]],
       "line-opacity": 0.88
     }
   });
 
+  // ---- Properties: house symbol (only from zoom 15, there are thousands)
   map.addLayer({
-    id: "geoestate-properties", type: "circle", source: "geoestate-properties", minzoom: 14,
-    paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 1.2, 17, 3.5], "circle-color": "#0b5d3b", "circle-opacity": 0.45 }
+    id: "geoestate-properties", type: "symbol", source: "geoestate-properties", minzoom: 14.5,
+    layout: { "icon-image": "property", "icon-size": ["interpolate", ["linear"], ["zoom"], 14.5, 0.28, 17, 0.5], "icon-allow-overlap": true, "icon-ignore-placement": true },
   });
 
-  const circle = (id: string, color: any, radius: any, extra: any = {}) =>
-    map.addLayer({ id: `geoestate-${id}`, type: "circle", source: `geoestate-${id}`, ...extra, paint: {
-      "circle-radius": radius, "circle-color": color, "circle-stroke-color": "#fff", "circle-stroke-width": 1.5, "circle-opacity": 0.94 } });
-  const zr = (a: number, b: number, c: number) => ["interpolate", ["linear"], ["zoom"], 10, a, 14, b, 17, c];
-
-  // Education: colour by level (derived from the facility name). Campus buildings are tiny and only appear from zoom 14.
-  // (MapLibre only allows "zoom" as the input of a top-level interpolate, so the per-category sizes sit inside the stops.)
-  const eduSize = (a: number, b: number, c: number, camp: [number, number, number]) => ["interpolate", ["linear"], ["zoom"],
-    10, ["case", ["==", ["get", "cat"], "Campus building"], 0, ["==", ["get", "cat"], "Tertiary"], a + 1, a],
-    13.9, ["case", ["==", ["get", "cat"], "Campus building"], 0, ["==", ["get", "cat"], "Tertiary"], b + 1.5, b],
-    14, ["case", ["==", ["get", "cat"], "Campus building"], camp[0], ["==", ["get", "cat"], "Tertiary"], b + 1.5, b],
-    17, ["case", ["==", ["get", "cat"], "Campus building"], camp[2], ["==", ["get", "cat"], "Tertiary"], c + 2, c]];
-  circle("schools", ["match", ["get", "cat"],
-    "Nursery", "#f59e0b", "Primary", "#2563eb", "Secondary", "#7c3aed", "Tertiary", "#0f766e", "Campus building", "#94a3b8", "#64748b"],
-    eduSize(3.5, 5.5, 7, [3, 3.5, 4.5]));
-  // Health: colour and size by GRID3 facility level.
-  circle("hospitals", ["match", ["get", "lvl"], "Tertiary", "#7f1d1d", "Secondary", "#dc2626", "Primary", "#f87171", "#9ca3af"],
-    ["match", ["get", "lvl"], "Tertiary", 7, "Secondary", 5.5, 3.8]);
-  circle("markets", "#c2410c", zr(3.5, 5.5, 7));
-  circle("government", "#7c3aed", zr(3.5, 5.5, 7));
-
   map.addLayer({
-    id: "geoestate-flood-fill", type: "fill", source: "geoestate-flood",
-    filter: ["==", ["geometry-type"], "Polygon"],
-    paint: { "fill-color": "#168aad", "fill-opacity": 0.10 }
+    id: "geoestate-roads-label", type: "symbol", source: "geoestate-roads", minzoom: 13, filter: hasName as any,
+    layout: { "symbol-placement": "line", "text-field": ["get", "name"], "text-font": LABEL_FONT, "text-size": ["interpolate", ["linear"], ["zoom"], 13, 9, 17, 12], "text-letter-spacing": 0.03, "text-max-angle": 35 },
+    paint: { "text-color": "#374151", ...halo },
   });
   map.addLayer({
-    id: "geoestate-flood", type: "line", source: "geoestate-flood",
-    paint: { "line-color": "#168aad", "line-width": 2.5, "line-opacity": 0.72, "line-dasharray": [2, 2] }
+    id: "geoestate-flood-label", type: "symbol", source: "geoestate-flood", minzoom: 12, filter: hasName as any,
+    layout: { "symbol-placement": "line-center", "text-field": ["get", "name"], "text-font": LABEL_FONT, "text-size": 11, "text-letter-spacing": 0.08 },
+    paint: { "text-color": "#0e6b86", ...halo },
   });
 
+  // ---- Point-of-interest layers: each has its own symbol, with the name as a label
+  // MapLibre only allows "zoom" as the input of a top-level interpolate, so per-category sizes sit inside the stops.
+  const sized = (stops: [number, any][]) => ["interpolate", ["linear"], ["zoom"], ...stops.flatMap(([z, v]) => [z, v])];
+  const poi = (id: string, icon: any, size: any, labelColor: string, labelFrom = 13) =>
+    map.addLayer({
+      id: `geoestate-${id}`, type: "symbol", source: `geoestate-${id}`,
+      layout: {
+        "icon-image": icon, "icon-size": size, "icon-allow-overlap": true, "icon-ignore-placement": true,
+        "text-field": ["case", hasName as any, ["get", "name"], ""],
+        "text-font": LABEL_FONT, "text-size": ["interpolate", ["linear"], ["zoom"], labelFrom - 0.01, 0, labelFrom, 11, 17, 13],
+        "text-anchor": "top", "text-offset": [0, 0.9], "text-max-width": 8, "text-optional": true,
+      },
+      paint: { "text-color": labelColor, ...halo },
+    });
+
+  // Education: same cap glyph, colour by level. Campus buildings are tiny and only appear from zoom 14.
+  const isCampus = ["==", ["get", "cat"], "Campus building"];
+  const isTertiaryEdu = ["==", ["get", "cat"], "Tertiary"];
+  poi("schools",
+    ["match", ["get", "cat"], "Nursery", "edu-nursery", "Primary", "edu-primary", "Secondary", "edu-secondary", "Tertiary", "edu-tertiary", "Campus building", "edu-campus", "edu-unknown"],
+    sized([
+      [10, ["case", isCampus, 0, isTertiaryEdu, 0.5, 0.4]],
+      [13.9, ["case", isCampus, 0, isTertiaryEdu, 0.7, 0.58]],
+      [14, ["case", isCampus, 0.3, isTertiaryEdu, 0.7, 0.58]],
+      [17, ["case", isCampus, 0.42, isTertiaryEdu, 0.95, 0.8]],
+    ]),
+    "#1f2937", 13.5);
+
+  // Health: cross badge, colour and size by GRID3 facility level.
+  const lvlSize = (t: number, s: number, p: number) => ["match", ["get", "lvl"], "Tertiary", t, "Secondary", s, p];
+  poi("hospitals",
+    ["match", ["get", "lvl"], "Tertiary", "health-tertiary", "Secondary", "health-secondary", "Primary", "health-primary", "health-unknown"],
+    sized([[10, lvlSize(0.5, 0.42, 0.34)], [14, lvlSize(0.8, 0.68, 0.55)], [17, lvlSize(1.0, 0.88, 0.72)]]),
+    "#7f1d1d", 13);
+
+  poi("markets", "market", sized([[10, 0.4], [14, 0.62], [17, 0.85]]), "#9a3412", 13);
+  poi("government", "gov", sized([[10, 0.4], [14, 0.62], [17, 0.85]]), "#5b21b6", 13);
 }
 
 // Land cover is a static overlay clipped from ESA WorldCover (see scripts/prepare-worldcover.sh).
@@ -113,6 +144,16 @@ const layers: Layer[] = [
   { id: "government", label: "Government", icon: <Landmark size={15}/> },
   { id: "flood", label: "Flood indicator", icon: <Droplets size={15}/> },
   { id: "landcover", label: "Land cover", icon: <Trees size={15}/> }
+];
+
+const sym = (id: string, size = 18) => <img src={iconDataUri(id)} width={size} height={size} alt="" />;
+const roadSwatch = (c: string, w: number) => <span style={{ width: 18, height: w, background: c, borderRadius: 2, display: "inline-block" }} />;
+const LEGEND: { title: string; items: [string, React.ReactNode][] }[] = [
+  { title: "Education", items: [["Nursery", sym("edu-nursery")], ["Primary school", sym("edu-primary")], ["Secondary school", sym("edu-secondary")], ["College / university", sym("edu-tertiary")], ["Level unknown", sym("edu-unknown")], ["Campus building (zoom 14+)", sym("edu-campus", 14)]] },
+  { title: "Health facilities", items: [["Tertiary", sym("health-tertiary")], ["Secondary", sym("health-secondary")], ["Primary", sym("health-primary")]] },
+  { title: "Other points", items: [["Market", sym("market")], ["Government", sym("gov")], ["Property (zoom 15+)", sym("property", 14)]] },
+  { title: "Roads", items: [["Motorway / trunk", roadSwatch(ROAD_COLORS.trunk, 4)], ["Primary / secondary", roadSwatch(ROAD_COLORS.primary, 3)], ["Tertiary", roadSwatch(ROAD_COLORS.tertiary, 2)], ["Residential / service", roadSwatch(ROAD_COLORS.residential, 1.5)]] },
+  { title: "Water", items: [["Flood indicator", sym("flood")]] },
 ];
 
 export default function GeoEstateApp() {
@@ -167,7 +208,9 @@ export default function GeoEstateApp() {
       }
     }
 
-    map.on("load", () => {
+    map.on("load", async () => {
+      if (!map.getStyle().glyphs) map.setGlyphs(GLYPHS_URL); // custom styles may not define fonts; labels need them
+      await loadMapIcons(map); // symbols must exist before the symbol layers are added
       addProviderLayers(map, null); // layers exist immediately, data fills in below
       loadSpatial();
       addLandcover(map, () => setLcReady(true));
@@ -178,24 +221,39 @@ export default function GeoEstateApp() {
       loadTimer = setTimeout(loadSpatial, 600);
     });
 
-    // Click a school / health facility dot to see its attributes (so names and types can be checked on the map).
-    const esc = (v: any) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
-    const poiLayers = ["geoestate-schools", "geoestate-hospitals", "geoestate-markets", "geoestate-government"];
-    for (const id of poiLayers) {
-      map.on("mouseenter", id, () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", id, () => { map.getCanvas().style.cursor = ""; });
-    }
+    // Click any feature (education, health, markets, government, buildings, water, roads) to see its attributes.
+    // Points win over areas, areas over roads, so a click on a school sitting next to a road shows the school.
+    const hitTest = (point: maplibregl.Point) => {
+      for (const g of HIT_GROUPS) {
+        const layersNow = g.layers.filter(l => map.getLayer(l) && map.getLayoutProperty(l, "visibility") !== "none");
+        if (!layersNow.length) continue;
+        const raw = map.queryRenderedFeatures([[point.x - g.pad, point.y - g.pad], [point.x + g.pad, point.y + g.pad]], { layers: layersNow });
+        const seen = new Set<string>(); const hits: maplibregl.MapGeoJSONFeature[] = [];
+        for (const f of raw) {
+          const geom: any = f.geometry;
+          const key = `${f.layer.id}|${JSON.stringify(f.properties)}|${geom.type === "Point" ? geom.coordinates.join(",") : ""}`;
+          if (seen.has(key)) continue; seen.add(key); hits.push(f);
+        }
+        if (hits.length) return hits;
+      }
+      return [];
+    };
+
+    let popup: maplibregl.Popup | null = null;
+    map.on("mousemove", (e) => { map.getCanvas().style.cursor = hitTest(e.point).length ? "pointer" : ""; });
     map.on("click", async (e) => {
-      const hit = map.getLayer("geoestate-schools") ? map.queryRenderedFeatures(e.point, { layers: poiLayers.filter(l => map.getLayer(l)) })[0] : undefined;
-      if (hit) {
-        const p: any = hit.properties || {};
-        const isEdu = hit.layer.id === "geoestate-schools", isHealth = hit.layer.id === "geoestate-hospitals";
-        const rows = isEdu ? [["Level", p.cat], ["Type", p.kind], ["Operator", p.op], ["LGA", p.lga]]
-          : isHealth ? [["Level", p.lvl], ["Type", p.type]] : [];
-        new maplibregl.Popup({ offset: 10, closeButton: true }).setLngLat((hit.geometry as any).coordinates)
-          .setHTML(`<strong>${esc(p.name || "Unnamed")}</strong>` + rows.filter(r => r[1]).map(r => `<div style="font-size:12px;color:#475569">${r[0]}: ${esc(r[1])}</div>`).join("")).addTo(map);
+      const hits = hitTest(e.point);
+      if (hits.length) {
+        popup?.remove();
+        const first: any = hits[0].geometry;
+        const at = first.type === "Point" ? { lng: first.coordinates[0], lat: first.coordinates[1] } : e.lngLat;
+        popup = new maplibregl.Popup({ offset: 16, closeButton: true, maxWidth: "300px", className: "geo-popup" })
+          .setLngLat([at.lng, at.lat])
+          .setHTML(buildPopupHtml(hits.map(h => ({ layerId: h.layer.id, props: h.properties || {} })), at))
+          .addTo(map);
         return;
       }
+      popup?.remove();
       try {
         const response = await fetch(`/api/landcheck?lat=${e.lngLat.lat}&lng=${e.lngLat.lng}`);
         const body = await response.json().catch(() => ({}));
@@ -224,9 +282,8 @@ export default function GeoEstateApp() {
     const nextVisible = !activeLayers[id];
     setActiveLayers(prev => ({ ...prev, [id]: nextVisible }));
     const map = mapRef.current;
-    if (!map || !VECTOR_LAYER_IDS.includes(id)) return;
-    const layerIds = id === "flood" ? ["geoestate-flood", "geoestate-flood-fill"] : [`geoestate-${id}`];
-    for (const layerId of layerIds) {
+    if (!map) return;
+    for (const layerId of LAYER_GROUPS[id] ?? []) {
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", nextVisible ? "visible" : "none");
     }
   }
@@ -321,10 +378,14 @@ export default function GeoEstateApp() {
 
           <div className="landcheck-cta" style={{ marginTop: 10 }}>
             <small>Legend</small>
-            {[["Nursery", "#f59e0b"], ["Primary school", "#2563eb"], ["Secondary school", "#7c3aed"], ["College / university", "#0f766e"], ["Education (level unknown)", "#64748b"], ["Campus building (zoom 14+)", "#94a3b8"],
-              ["Health: tertiary", "#7f1d1d"], ["Health: secondary", "#dc2626"], ["Health: primary", "#f87171"]].map(([l, c]) => (
-              <div key={l} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginTop: 4 }}>
-                <span style={{ width: 10, height: 10, borderRadius: "50%", background: c, display: "inline-block", border: "1.5px solid #fff", boxShadow: "0 0 0 1px #cbd5e1" }} />{l}
+            {LEGEND.map(group => (
+              <div key={group.title}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5a52", margin: "8px 0 2px", textTransform: "uppercase", letterSpacing: ".04em" }}>{group.title}</div>
+                {group.items.map(([label, swatch]) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginTop: 4 }}>
+                    <span style={{ width: 20, display: "inline-flex", justifyContent: "center", flexShrink: 0 }}>{swatch}</span>{label}
+                  </div>
+                ))}
               </div>
             ))}
           </div>
