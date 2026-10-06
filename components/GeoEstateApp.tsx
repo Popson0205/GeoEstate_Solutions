@@ -85,7 +85,7 @@ function addProviderLayers(map: MapLibreMap, data: any) {
 
 // Land cover is a static overlay clipped from ESA WorldCover (see scripts/prepare-worldcover.sh).
 // No third-party tile server involved; if the files are not generated yet the layer is simply skipped.
-async function addLandcover(map: MapLibreMap) {
+async function addLandcover(map: MapLibreMap, onReady?: () => void) {
   try {
     const r = await fetch("/api/landcover/meta");
     if (!r.ok) return;
@@ -98,6 +98,7 @@ async function addLandcover(map: MapLibreMap) {
       coordinates: [[b.west, b.north], [b.east, b.north], [b.east, b.south], [b.west, b.south]],
     });
     map.addLayer({ id: "geoestate-landcover", type: "raster", source: "geoestate-landcover", paint: { "raster-opacity": 0.4, "raster-resampling": "nearest" } }, "geoestate-roads");
+    onReady?.();
   } catch (e) { console.warn("GeoEstate land cover overlay unavailable", e); }
 }
 
@@ -122,6 +123,7 @@ export default function GeoEstateApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [lcReady, setLcReady] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>(
     Object.fromEntries(layers.map(x => [x.id, true]))
   );
@@ -168,7 +170,7 @@ export default function GeoEstateApp() {
     map.on("load", () => {
       addProviderLayers(map, null); // layers exist immediately, data fills in below
       loadSpatial();
-      addLandcover(map);
+      addLandcover(map, () => setLcReady(true));
     });
     map.on("moveend", () => {
       if (!map.isStyleLoaded() || !map.getSource("geoestate-roads")) return;
@@ -326,6 +328,17 @@ export default function GeoEstateApp() {
               </div>
             ))}
           </div>
+          {lcReady && activeLayers.landcover && (
+            <div className="landcheck-cta" style={{ marginTop: 10 }}>
+              <small>Land cover (ESA WorldCover 2021)</small>
+              {[["Tree cover", "#006400"], ["Shrubland", "#ffbb22"], ["Grassland", "#ffff4c"], ["Cropland", "#f096ff"], ["Built-up", "#fa0000"],
+                ["Bare / sparse vegetation", "#b4b4b4"], ["Permanent water", "#0064c8"], ["Herbaceous wetland", "#0096a0"]].map(([l, c]) => (
+                <div key={l} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginTop: 4 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: c, display: "inline-block", border: "1px solid #cbd5e1" }} />{l}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="landcheck-cta">
             <small>GeoEstate intelligence</small>

@@ -120,3 +120,7 @@ Nearest "hospital" is now the nearest GRID3 health facility of any level (label 
 - **Viewport:** `/api/spatial` no longer cuts the viewport to 0.06 x 0.09 degrees when serving the local snapshot, so layers fill the whole screen. Roads of all classes show from zoom 12.
 - **Land cover:** `/api/landcover/meta` returns 200 `{available:false}` instead of 404 when the overlay files are missing, and the client skips it quietly. To get the overlay, run `bash scripts/prepare-worldcover.sh` (needs GDAL and internet) and commit `public/worldcover-osogbo.png` and `data/worldcover_osogbo.asc`.
 - `scripts/fetch-osm.mjs` now **merges** markets, government, water and buildings into the existing `data/snapshot.json` instead of overwriting it (use `--overwrite` for the old behaviour).
+
+## v0.12 — land cover from Google Earth Engine
+
+`public/worldcover-osogbo.png` (3352 x 3718 px colour overlay) and `data/worldcover_osogbo.asc` (1676 x 1859 class grid, ~66 m) now come from the GEE export (`gee_worldcover_export.js` + `convert_worldcover.py`) and cover all of Osun (4.0524, 6.9804 to 5.058, 8.0958). No online land cover source is used. `data/worldcover_legend.csv` has area per class. The sidebar shows the land cover legend while the layer is on.

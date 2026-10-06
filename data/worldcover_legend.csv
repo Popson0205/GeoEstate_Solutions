@@ -1,0 +1,9 @@
+code,name,color,area_km2,percent
+10,Tree cover,#006400,11117.9,81.21
+20,Shrubland,#ffbb22,407.65,2.98
+30,Grassland,#ffff4c,1414.41,10.33
+40,Cropland,#f096ff,195.93,1.43
+50,Built-up,#fa0000,528.75,3.86
+60,Bare / sparse vegetation,#b4b4b4,5.15,0.04
+80,Permanent water,#0064c8,13.86,0.1
+90,Herbaceous wetland,#0096a0,6.06,0.04
