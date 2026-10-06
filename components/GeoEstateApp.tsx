@@ -133,6 +133,23 @@ async function addLandcover(map: MapLibreMap, onReady?: () => void) {
   } catch (e) { console.warn("GeoEstate land cover overlay unavailable", e); }
 }
 
+// Flood indicator overlay: modelled drainage + flood-prone zones from the ALOS DEM (see FLOOD.md, scripts/prepare-flood-overlay.py).
+// Static files in /public; if they are missing the layer is simply skipped.
+async function addFloodOverlay(map: MapLibreMap, onReady?: () => void) {
+  try {
+    const r = await fetch("/flood-overlay-osun.json");
+    if (!r.ok) return;
+    const b = (await r.json()).bounds;
+    if (!b || map.getSource("geoestate-flood-terrain")) return;
+    map.addSource("geoestate-flood-terrain", {
+      type: "image", url: "/flood-overlay-osun.png",
+      coordinates: [[b.west, b.north], [b.east, b.north], [b.east, b.south], [b.west, b.south]],
+    });
+    map.addLayer({ id: "geoestate-flood-terrain", type: "raster", source: "geoestate-flood-terrain", paint: { "raster-opacity": 0.9, "raster-resampling": "nearest" } }, "geoestate-roads");
+    onReady?.();
+  } catch (e) { console.warn("GeoEstate flood overlay unavailable", e); }
+}
+
 type Layer = { id: string; label: string; icon: React.ReactNode };
 
 const layers: Layer[] = [
@@ -165,6 +182,7 @@ export default function GeoEstateApp() {
   const [notice, setNotice] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [lcReady, setLcReady] = useState(false);
+  const [fdReady, setFdReady] = useState(false);
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>(
     Object.fromEntries(layers.map(x => [x.id, true]))
   );
@@ -214,6 +232,7 @@ export default function GeoEstateApp() {
       addProviderLayers(map, null); // layers exist immediately, data fills in below
       loadSpatial();
       addLandcover(map, () => setLcReady(true));
+      addFloodOverlay(map, () => setFdReady(true));
     });
     map.on("moveend", () => {
       if (!map.isStyleLoaded() || !map.getSource("geoestate-roads")) return;
@@ -367,8 +386,9 @@ export default function GeoEstateApp() {
                     <span className={`layer-dot ${activeLayers[layer.id] ? "active" : ""}`}></span>
                     {layer.icon}
                     {layer.label}
-                    {layer.id !== "landcover" && counts[layer.id] === 0 && <span style={{ fontSize: 10, fontWeight: 600, color: "#9a3412", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 6, padding: "1px 5px" }}>no data</span>}
-                    {layer.id !== "landcover" && counts[layer.id] > 0 && <span style={{ fontSize: 10, fontWeight: 500, color: "#6b7a72" }}>{Math.round(counts[layer.id]).toLocaleString()}</span>}
+                    {layer.id === "flood" && fdReady && <span style={{ fontSize: 10, fontWeight: 500, color: "#6b7a72" }}>modelled</span>}
+                    {layer.id !== "landcover" && !(layer.id === "flood" && fdReady) && counts[layer.id] === 0 && <span style={{ fontSize: 10, fontWeight: 600, color: "#9a3412", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 6, padding: "1px 5px" }}>no data</span>}
+                    {layer.id !== "landcover" && layer.id !== "flood" && counts[layer.id] > 0 && <span style={{ fontSize: 10, fontWeight: 500, color: "#6b7a72" }}>{Math.round(counts[layer.id]).toLocaleString()}</span>}
                   </div>
                   <div className={`toggle ${activeLayers[layer.id] ? "on" : ""}`}><span/></div>
                 </div>
@@ -389,6 +409,17 @@ export default function GeoEstateApp() {
               </div>
             ))}
           </div>
+          {fdReady && activeLayers.flood && (
+            <div className="landcheck-cta" style={{ marginTop: 10 }}>
+              <small>Flood indicator (terrain model, ALOS DEM + satellite water)</small>
+              {[["High susceptibility", "rgba(22,138,173,.55)"], ["Moderate susceptibility", "rgba(125,200,222,.4)"], ["Modelled stream", "#0c4a6e"], ["Water body (satellite)", "#005abe"]].map(([l, c]) => (
+                <div key={l} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginTop: 4 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: c, display: "inline-block", border: "1px solid #cbd5e1" }} />{l}
+                </div>
+              ))}
+              <small style={{ display: "block", marginTop: 6 }}>Susceptibility, not a flood-risk forecast.</small>
+            </div>
+          )}
           {lcReady && activeLayers.landcover && (
             <div className="landcheck-cta" style={{ marginTop: 10 }}>
               <small>Land cover (ESA WorldCover 2021)</small>

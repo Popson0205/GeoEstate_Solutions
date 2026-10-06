@@ -1,10 +1,11 @@
 // Build data/snapshot.json from locally downloaded national datasets (no Overpass needed).
 //   node scripts/build-snapshot.mjs --roads road.geojson --edu education_facilities.geojson \
 //        --health GRID3_NGA_health_facility_v3_0_....geojson --adm1 geoBoundaries-NGA-ADM1.geojson \
-//        --adm2 geoBoundaries-NGA-ADM2.geojson [--state Osun] [--bbox W,S,E,N]
+//        --adm2 geoBoundaries-NGA-ADM2.geojson [--state Osun] [--bbox W,S,E,N] [--markets Markets_in_Nigeria.geojson]
 // Default area = bounding box of the --state polygon (Osun). The big road file is streamed, so memory stays low.
 import fs from "node:fs";
 import { classifyEducation } from "./edu-classify.mjs";
+import { marketsFromGeoJSON } from "./markets.mjs";
 
 const arg = (k, d) => { const i = process.argv.indexOf("--" + k); return i > -1 ? process.argv[i + 1] : d; };
 const need = k => { const v = arg(k); if (!v) { console.error(`Missing --${k}`); process.exit(1); } return v; };
@@ -124,7 +125,7 @@ const snapshot = {
   roads: await streamRoads(),
   schools: schools(),
   hospitals: health(),
-  markets: [], government: [], water: [], buildings: [],
+  markets: arg("markets") ? marketsFromGeoJSON(arg("markets"), inBox) : [], government: [], water: [], buildings: [],
   adm1: admin(adm1Path, "ADM1"), adm2: admin(adm2Path, "ADM2"),
 };
 fs.mkdirSync("data", { recursive: true });

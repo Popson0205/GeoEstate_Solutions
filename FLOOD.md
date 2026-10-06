@@ -37,3 +37,13 @@ Without this file the app uses the terrain model only.
 - Dry-season radar water has false positives away from rivers (likely dark dry/burnt surfaces); it only ever *reduces* the wet-minus-dry signal.
 - Observed evidence mostly confirms the terrain model (those cells already score High); it adds little new area.
 - Terrain model alone puts ~25% of Osun in High, which may be too many: tune `handScore` breakpoints / class cut-offs in `lib/flood.ts`.
+
+## Map overlay (the "Flood indicator" layer)
+`python3 scripts/prepare-flood-overlay.py` builds `public/flood-overlay-osun.png` (+ `.json` bounds) from the flood grids:
+High / Moderate susceptibility, modelled streams (>= 0.5 km² catchment) and satellite water bodies (JRC >= 25%).
+Re-run it after `prepare-flood-terrain.py` and after `prepare-flood-observed.py`. The app loads it as a static image layer
+(like land cover); the layer toggle, legend and "modelled" badge work from it. OSM water features are still drawn if the snapshot has any.
+
+## Markets
+`node scripts/add-markets.mjs path/to/Markets_in_Nigeria.geojson` adds markets to `data/snapshot.json` (or pass `--markets` to `build-snapshot.mjs`).
+Records are clipped to the snapshot area, near-duplicate names within 300 m are merged, and placeholder values ("Other", all-7-days defaults) are blanked.

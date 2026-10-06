@@ -90,7 +90,7 @@ export const LAYER_GROUPS: Record<string, string[]> = {
   hospitals: ["geoestate-hospitals"],
   markets: ["geoestate-markets"],
   government: ["geoestate-government"],
-  flood: ["geoestate-flood", "geoestate-flood-fill", "geoestate-flood-label"],
+  flood: ["geoestate-flood", "geoestate-flood-fill", "geoestate-flood-label", "geoestate-flood-terrain"],
   landcover: ["geoestate-landcover"],
 };
 
@@ -134,7 +134,7 @@ function specFor(layerId: string, p: Record<string, any>): PopupSpec {
     case "geoestate-hospitals":
       return { type: "Health facility", img: iconDataUri(healthIconId(p.lvl)), rows: [["Level", p.lvl], ["Type", p.type]] };
     case "geoestate-markets":
-      return { type: "Market", img: iconDataUri("market"), rows: generic() };
+      return { type: "Market", img: iconDataUri("market"), rows: [["Type", p.type], ["Goods", p.goods], ["Frequency", p.freq], ["Market days", p.days], ["Settlement", p.settlement], ["Ward", p.ward], ["LGA", p.lga], ["State", p.state]] };
     case "geoestate-government":
       return { type: "Government", img: iconDataUri("gov"), rows: generic() };
     case "geoestate-properties":

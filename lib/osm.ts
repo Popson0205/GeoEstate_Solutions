@@ -70,7 +70,7 @@ export function featuresFromSnapshot(b: { south: number; west: number; north: nu
   if (!covers(cLat, cLng)) return null;
   const inBox = (lon: number, lat: number) => lon >= b.west && lon <= b.east && lat >= b.south && lat <= b.north;
   const fc = (features: any[]) => ({ type: "FeatureCollection", features });
-  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "", cat: p.cat || "", lvl: p.lvl || "", type: p.type || "", op: p.op || "", lga: p.lga || "", cap: p.cap || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
+  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "", cat: p.cat || "", lvl: p.lvl || "", type: p.type || "", op: p.op || "", lga: p.lga || "", cap: p.cap || "", freq: p.freq || "", days: p.days || "", goods: p.goods || "", settlement: p.settlement || "", ward: p.ward || "", state: p.state || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
   const major = /^(motorway|trunk|primary|secondary|tertiary)$/;
 
   const roads: any[] = [];

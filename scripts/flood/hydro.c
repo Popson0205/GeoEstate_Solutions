@@ -3,7 +3,7 @@
  * Usage:  hydro dem.i16 slope.u8x4 ncols nrows north cellX_deg cellY_deg stream_km2 out_dir
  *   dem.i16     raw little-endian int16, row-major north->south, 0 = no data
  *   slope.u8x4  raw uint8 = slope degrees * 4 (255 = no data)  (optional: pass "-" to use 1 deg everywhere)
- * Writes out_dir/hand.u8 (HAND metres*2, 255=nodata), twi.u8 (TWI*8, 255=nodata), acc.i32 (upslope cell count).
+ * Writes out_dir/hand.u8 (HAND metres*2; 0 = modelled stream cell, non-stream cells are >= 1; 255=nodata), twi.u8 (TWI*8, 255=nodata), acc.i32 (upslope cell count).
  * Method: Barnes, Lehman & Mulla (2014) Priority-Flood (flats drain toward their spill point), D8 routing. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +64,8 @@ int main(int argc, char **argv) {
     int stream = acc[c] * area >= streamKm2 * 1e6;
     if (dir[c] >= 8 || stream) ref[c] = fill[c]; else { long p = (r + DR[dir[c]]) * W + (col + DC[dir[c]]); ref[c] = ref[p]; }
     if (stream) nstream++;
-    double h = dem[c] - ref[c]; if (h < 0) h = 0; double hv = h * 2.0; hand[c] = hv > 254 ? 254 : (uint8_t)(hv + 0.5);
+    double h = dem[c] - ref[c]; if (h < 0) h = 0; double hv = h * 2.0; uint8_t hb = hv > 254 ? 254 : (uint8_t)(hv + 0.5);
+    hand[c] = stream ? 0 : (hb == 0 ? 1 : hb);                                 /* 0 is reserved for modelled stream cells */
     double sd = slp && slp[c] != 255 ? slp[c] / 4.0 : 1.0; if (sd < 0.5) sd = 0.5;
     double a = acc[c] * area / dx;                                              /* specific catchment area, m */
     double t = log(a / tan(sd * M_PI / 180.0)); double tv = t * 8.0; twi[c] = tv < 0 ? 0 : tv > 254 ? 254 : (uint8_t)(tv + 0.5);
