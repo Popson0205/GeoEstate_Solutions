@@ -463,6 +463,8 @@ export default function GeoEstateApp() {
                 <div className="metric"><label>Slope</label><strong>{selected.slope}</strong></div>
                 <div className="metric"><label>Land cover</label><strong>{selected.landCover}</strong></div>
                 <div className="metric"><label>Schools within 2 km</label><strong>{selected.educationCount ?? "n/a"}</strong></div>
+                <div className="metric"><label>Nearest market</label><strong>{selected.nearestMarket ?? "n/a"}</strong></div>
+                <div className="metric"><label>Markets within 3 km</label><strong>{selected.marketCount ?? "n/a"}</strong></div>
               </div>
 
               <div className="card-actions">

@@ -134,7 +134,7 @@ function specFor(layerId: string, p: Record<string, any>): PopupSpec {
     case "geoestate-hospitals":
       return { type: "Health facility", img: iconDataUri(healthIconId(p.lvl)), rows: [["Level", p.lvl], ["Type", p.type]] };
     case "geoestate-markets":
-      return { type: "Market", img: iconDataUri("market"), rows: generic() };
+      return { type: "Market", img: iconDataUri("market"), rows: [["Trading days", p.days], ["Frequency", p.freq], ["Market type", p.type], ["Goods", p.goods], ["Settlement", p.settlement], ["Area type", p.area], ["LGA", p.lga], ["State", p.state]] };
     case "geoestate-government":
       return { type: "Government", img: iconDataUri("gov"), rows: generic() };
     case "geoestate-properties":

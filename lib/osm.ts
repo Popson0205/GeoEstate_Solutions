@@ -56,12 +56,18 @@ export function nearbyFromSnapshot(lat: number, lng: number) {
     .map(p => ({ name: p.name || `${KIND[p.kind] || "Education facility"} (unnamed)`, kind: p.cat && p.cat !== "School" ? `${p.cat} ${(KIND[p.kind] || "School").toLowerCase()}` : (KIND[p.kind] || "School"), d: distPt(lat, lng, p.lon, p.lat) }))
     .filter(p => p.d <= 2000).sort((a, b) => a.d - b.d);
   const eduNearby = edu.slice(0, 8).map(p => ({ ...p, d: Math.round(p.d) }));
+  // Markets (national markets dataset): nearest one, how many within 3 km, and the 5 closest.
+  const mk = ((s.markets || []) as any[])
+    .map(m => ({ name: m.name || "Market (unnamed)", type: m.type || "", days: m.days || "", freq: m.freq || "", d: distPt(lat, lng, m.lon, m.lat) }))
+    .sort((a, b) => a.d - b.d);
+  const marketsNearby = mk.filter(m => m.d <= 3000).slice(0, 5).map(m => ({ ...m, d: Math.round(m.d) }));
+  const marketCount3km = mk.filter(m => m.d <= 3000).length;
   let buildings = 0;
   const B = s.buildings;
   for (let i = 0; i < B.length; i += 2) {
     if (Math.abs(B[i + 1] - lat) < 0.01 && distPt(lat, lng, B[i], B[i + 1]) <= 1000) buildings++;
   }
-  return { roadD, roadName, roadLen, schoolD: sc.d, schoolName: sc.name, eduCount2km: edu.length, eduNearby, hospD: ho.d, hospName: ho.name, buildings };
+  return { roadD, roadName, roadLen, schoolD: sc.d, schoolName: sc.name, eduCount2km: edu.length, eduNearby, hospD: ho.d, hospName: ho.name, marketD: mk.length ? mk[0].d : Infinity, marketName: mk.length ? mk[0].name : "", marketCount3km, marketsNearby, buildings };
 }
 
 export function featuresFromSnapshot(b: { south: number; west: number; north: number; east: number }, zoom: number) {
@@ -70,7 +76,7 @@ export function featuresFromSnapshot(b: { south: number; west: number; north: nu
   if (!covers(cLat, cLng)) return null;
   const inBox = (lon: number, lat: number) => lon >= b.west && lon <= b.east && lat >= b.south && lat <= b.north;
   const fc = (features: any[]) => ({ type: "FeatureCollection", features });
-  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "", cat: p.cat || "", lvl: p.lvl || "", type: p.type || "", op: p.op || "", lga: p.lga || "", cap: p.cap || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
+  const pt = (p: any) => ({ type: "Feature", properties: { name: p.name || "Unnamed", kind: p.kind || "", cat: p.cat || "", lvl: p.lvl || "", type: p.type || "", op: p.op || "", lga: p.lga || "", cap: p.cap || "", state: p.state || "", settlement: p.settlement || "", freq: p.freq || "", days: p.days || "", goods: p.goods || "", area: p.area || "" }, geometry: { type: "Point", coordinates: [p.lon, p.lat] } });
   const major = /^(motorway|trunk|primary|secondary|tertiary)$/;
 
   const roads: any[] = [];

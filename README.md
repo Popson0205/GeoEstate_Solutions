@@ -8,7 +8,7 @@ GeoEstate LandCheck is the first pilot of the GeoEstate spatial intelligence pla
 - **Properties:** OpenStreetMap building footprints (these are buildings, not legal cadastral parcels)
 - **Schools:** OpenStreetMap
 - **Hospitals:** OpenStreetMap
-- **Markets:** OpenStreetMap
+- **Markets:** national markets dataset (GRID3 / eHA / OSGOF), loaded into `data/snapshot.json` by `scripts/patch-markets.mjs`
 - **Government:** OpenStreetMap government/town-hall features
 - **Flood indicator:** mapped OSM waterways/water bodies as a proximity/context indicator; this is **not** an official flood hazard map
 - **Land cover:** ESA WorldCover 2021 WMS visualization
@@ -125,3 +125,12 @@ Nearest "hospital" is now the nearest GRID3 health facility of any level (label 
 ## v0.12 — land cover from Google Earth Engine
 
 `public/worldcover-osogbo.png` (3352 x 3718 px colour overlay) and `data/worldcover_osogbo.asc` (1676 x 1859 class grid, ~66 m) now come from the GEE export (`gee_worldcover_export.js` + `convert_worldcover.py`) and cover all of Osun (4.0524, 6.9804 to 5.058, 8.0958). No online land cover source is used. `data/worldcover_legend.csv` has area per class. The sidebar shows the land cover legend while the layer is on.
+
+
+## v0.13b — markets layer
+
+- 309 markets (after merging near-duplicates) from the national `Markets_in_Nigeria` GeoJSON now fill the Markets layer for the Osun snapshot area. Refresh with `node scripts/patch-markets.mjs <markets>.geojson` (or `npm run patch:markets -- <file>`); it only touches `markets` in `data/snapshot.json`.
+- Click a market on the map to see trading days, frequency, market type, goods, settlement, LGA and state.
+- LandCheck now returns the nearest market, the number of markets within 3 km and the 5 closest (name, type, trading days, distance). The location card and the printable report show them.
+- Markets do **not** change the spatial context score; they are shown as context only.
+- Caveat: attributes such as trading days and goods are blank for many records, and a few are contradictory in the source (e.g. "Bi-Weekly" with 7 trading days). They are shown as recorded.

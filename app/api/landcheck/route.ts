@@ -184,12 +184,15 @@ export async function GET(request: NextRequest) {
     nearestRoad: fmt(n.roadD, n.roadName || "Road", "No nearby mapped road"),
     nearestSchool: fmt(n.schoolD, n.schoolName, "No mapped school nearby"),
     nearestHospital: fmt(n.hospD, n.hospName, "No mapped hospital nearby"),
+    nearestMarket: (n as any).marketD === undefined ? "Not available" : fmt((n as any).marketD, (n as any).marketName || "Market", "No mapped market nearby"),
+    marketCount: (n as any).marketCount3km ?? null,
+    marketsNearby: (n as any).marketsNearby ?? [],
     elevation: elevation == null ? "Unavailable" : `${Math.round(elevation)} m`,
     educationCount: (n as any).eduCount2km ?? null,
     educationNearby: (n as any).eduNearby ?? [],
     slope: slope ? slope.label : "Not available",
     slopeDeg: slope ? Math.round(slope.mean * 10) / 10 : null,
     landCover: landCoverAt(lat, lng) ?? "Not available",
-    source: "GRID3 health, HOT/OSM schools, national roads, geoBoundaries + Copernicus DEM + ALOS slope",
+    source: "GRID3 health, HOT/OSM schools, national markets (GRID3 / eHA / OSGOF), national roads, geoBoundaries + Copernicus DEM + ALOS slope",
   });
 }
