@@ -460,6 +460,7 @@ export default function GeoEstateApp() {
                 <div className="metric"><label>Nearest road</label><strong>{selected.nearestRoad}</strong></div>
                 <div className="metric"><label>Nearest school</label><strong>{selected.nearestSchool}</strong></div>
                 <div className="metric"><label>Elevation</label><strong>{selected.elevation}</strong></div>
+                <div className="metric"><label>Slope</label><strong>{selected.slope}</strong></div>
                 <div className="metric"><label>Land cover</label><strong>{selected.landCover}</strong></div>
                 <div className="metric"><label>Schools within 2 km</label><strong>{selected.educationCount ?? "n/a"}</strong></div>
               </div>

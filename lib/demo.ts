@@ -13,6 +13,7 @@ export type LandCheckResult = {
   landCover: string;
   elevation: string;
   slope: string;
+  slopeDeg?: number | null;
   educationCount?: number | null;
   educationNearby?: { name: string; kind: string; d: number }[];
   source?: string;

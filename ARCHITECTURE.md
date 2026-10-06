@@ -28,3 +28,4 @@ The provider layer is deliberately isolated from the UI. External services can t
 - `/api/elevation` — Copernicus DEM GLO-90 elevation through Open-Meteo
 - `/api/search` — place search through Open-Meteo geocoding
 - `/api/landcheck` — combines spatial features and elevation into the first provider-backed LandCheck response
+- `lib/slope.ts` — local ALOS slope grid lookup (used by `/api/landcheck`)

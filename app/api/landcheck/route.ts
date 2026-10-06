@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nearbyFromSnapshot, placeAt } from "@/lib/osm";
 import { landCoverAt } from "@/lib/landcover";
+import { slopeAt } from "@/lib/slope";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -171,7 +172,10 @@ export async function GET(request: NextRequest) {
   const infrastructure = clamp(100 - (Number.isFinite(n.schoolD) ? n.schoolD : 5000) / 80 - (Number.isFinite(n.hospD) ? n.hospD : 8000) / 100);
   // Buildings are not in the national datasets, so development falls back to road density within 1 km (about 8 km of road = fully built-up).
   const development = clamp(Math.min(1, ((n as any).buildings > 0 ? (n as any).buildings / 250 : ((n as any).roadLen || 0) / 8000)) * 100);
-  const environment = elevation == null ? 60 : 75;
+  const slope = slopeAt(lat, lng);
+  // Environment: base 75 (60 without elevation); steep ground lowers it. Flat/gentle (<5°) costs nothing.
+  const slopePenalty = slope ? Math.min(30, Math.max(0, slope.mean - 5) * 3) : 0;
+  const environment = clamp((elevation == null ? 60 : 75) - slopePenalty);
   const score = Math.round(accessibility * .30 + infrastructure * .25 + development * .20 + environment * .25);
 
   return NextResponse.json({
@@ -183,8 +187,9 @@ export async function GET(request: NextRequest) {
     elevation: elevation == null ? "Unavailable" : `${Math.round(elevation)} m`,
     educationCount: (n as any).eduCount2km ?? null,
     educationNearby: (n as any).eduNearby ?? [],
-    slope: "Not yet calculated",
+    slope: slope ? slope.label : "Not available",
+    slopeDeg: slope ? Math.round(slope.mean * 10) / 10 : null,
     landCover: landCoverAt(lat, lng) ?? "Not available",
-    source: "GRID3 health, HOT/OSM schools, national roads, geoBoundaries + Copernicus DEM",
+    source: "GRID3 health, HOT/OSM schools, national roads, geoBoundaries + Copernicus DEM + ALOS slope",
   });
 }
