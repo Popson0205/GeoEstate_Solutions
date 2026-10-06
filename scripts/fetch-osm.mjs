@@ -1,6 +1,6 @@
 // One-time (or occasional) download of OpenStreetMap data for the Osogbo pilot area.
 // Run on your own computer:   node scripts/fetch-osm.mjs
-// Output: data/osogbo.json  -> commit it to GitHub so Railway deploys it with the app.
+// Output: data/snapshot.json  -> commit it to GitHub so Railway deploys it with the app.
 // Node 18+ required. Takes a few minutes; it retries and rotates mirrors automatically.
 import fs from "node:fs";
 
@@ -99,6 +99,6 @@ const out = {
   buildings: [...buildings.values()].flat(), // flat [lon,lat,lon,lat,...]
 };
 fs.mkdirSync("data", { recursive: true });
-fs.writeFileSync("data/osogbo.json", JSON.stringify(out));
+fs.writeFileSync("data/snapshot.json", JSON.stringify(out));
 console.log(`Done: ${out.roads.length} roads, ${out.schools.length} schools, ${out.hospitals.length} hospitals, ${out.buildings.length / 2} buildings, ${out.water.length} water features.`);
-console.log("Saved data/osogbo.json - commit it and redeploy.");
+console.log("Saved data/snapshot.json - commit it and redeploy.");

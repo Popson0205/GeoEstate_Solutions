@@ -97,3 +97,11 @@ Terrascope's tile servers drop connections from browsers (`ERR_HTTP2_PROTOCOL_ER
 2. Commit `public/worldcover-osogbo.png` and `data/worldcover_osogbo.asc`, redeploy.
 3. The map shows the overlay and the LandCheck card reports the actual class at the clicked point (Built-up, Cropland, Tree cover, ...).
 Without those files the app still works; the layer is skipped and land cover shows "Not available".
+
+## v0.9 — runs on your downloaded national datasets
+
+`data/snapshot.json` (included, Osun State) is built from: national road dataset (`road.geojson`), HOT/OSM education facilities, GRID3 health facilities v3, geoBoundaries ADM1/ADM2. No Overpass call is needed at runtime.
+Rebuild or change area (e.g. another state):
+`node scripts/build-snapshot.mjs --roads road.geojson --edu education_facilities.geojson --health GRID3_....geojson --adm1 geoBoundaries-NGA-ADM1.geojson --adm2 geoBoundaries-NGA-ADM2.geojson --state Osun`
+Not in these datasets (so empty/proxied): buildings (development score uses road density within 1 km), markets, government offices, water/flood lines. `scripts/fetch-osm.mjs` can still add those from Overpass.
+Nearest "hospital" is now the nearest GRID3 health facility of any level (label shows Primary/Secondary/Tertiary).

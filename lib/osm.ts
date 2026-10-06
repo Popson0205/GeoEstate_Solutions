@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// Local OSM snapshot produced by scripts/fetch-osm.mjs. Null if the file hasn't been generated yet.
+// Local snapshot produced by scripts/build-snapshot.mjs (national GeoJSON files) or scripts/fetch-osm.mjs (Overpass). Null if the file hasn't been generated yet.
 let snap: any | undefined;
 export function getSnapshot(): any | null {
   if (snap !== undefined) return snap;
-  try { snap = JSON.parse(fs.readFileSync(path.join(process.cwd(), "data", "osogbo.json"), "utf8")); }
+  try { snap = JSON.parse(fs.readFileSync(path.join(process.cwd(), "data", "snapshot.json"), "utf8")); }
   catch { snap = null; }
   return snap;
 }
@@ -30,13 +30,16 @@ const distPt = (lat: number, lng: number, lon2: number, lat2: number) =>
 
 export function nearbyFromSnapshot(lat: number, lng: number) {
   const s = getSnapshot(); if (!s || !covers(lat, lng)) return null;
-  let roadD = Infinity, roadName = "";
+  let roadD = Infinity, roadName = "", roadLen = 0;
+  const kLng = Math.cos(rad(lat)) * 111320;
   for (const r of s.roads) {
     // cheap reject: skip roads whose first vertex is > ~4 km away
     const f = r.g[0]; if (Math.abs(f[1] - lat) > 0.04 || Math.abs(f[0] - lng) > 0.04) continue;
     for (let i = 0; i < r.g.length - 1; i++) {
-      const d = distToSegment(lat, lng, r.g[i], r.g[i + 1]);
+      const A = r.g[i], B = r.g[i + 1];
+      const d = distToSegment(lat, lng, A, B);
       if (d < roadD) { roadD = d; roadName = r.n || r.h; }
+      if (d <= 1000) roadLen += Math.hypot((B[0] - A[0]) * kLng, (B[1] - A[1]) * 110540); // road length near the point (development proxy)
     }
   }
   const nearest = (arr: any[], fallback: string) => {
@@ -44,13 +47,14 @@ export function nearbyFromSnapshot(lat: number, lng: number) {
     for (const p of arr) { const d = distPt(lat, lng, p.lon, p.lat); if (d < best) { best = d; name = p.name || fallback; } }
     return { d: best, name };
   };
-  const sc = nearest(s.schools, "School"), ho = nearest(s.hospitals, "Hospital");
+  const sc = nearest(s.schools, "School");
+  const ho = nearest((s.hospitals as any[]).map(h => ({ ...h, name: (h.name || "Health facility") + (h.lvl ? ` (${h.lvl})` : "") })), "Health facility");
   let buildings = 0;
   const B = s.buildings;
   for (let i = 0; i < B.length; i += 2) {
     if (Math.abs(B[i + 1] - lat) < 0.01 && distPt(lat, lng, B[i], B[i + 1]) <= 1000) buildings++;
   }
-  return { roadD, roadName, schoolD: sc.d, schoolName: sc.name, hospD: ho.d, hospName: ho.name, buildings };
+  return { roadD, roadName, roadLen, schoolD: sc.d, schoolName: sc.name, hospD: ho.d, hospName: ho.name, buildings };
 }
 
 export function featuresFromSnapshot(b: { south: number; west: number; north: number; east: number }, zoom: number) {
@@ -90,4 +94,24 @@ export function featuresFromSnapshot(b: { south: number; west: number; north: nu
     roads: fc(roads), properties: fc(props), flood: fc(flood),
     schools: pts(s.schools), hospitals: pts(s.hospitals), markets: pts(s.markets), government: pts(s.government),
   };
+}
+
+function inRing(x: number, y: number, ring: number[][]) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function inPoly(x: number, y: number, a: any) {
+  const polys: number[][][][] = a.type === "Polygon" ? [a.c] : a.c;
+  return polys.some(poly => inRing(x, y, poly[0]) && !poly.slice(1).some(h => inRing(x, y, h)));
+}
+export function placeAt(lat: number, lng: number): string | null {
+  const s = getSnapshot(); if (!s?.adm2) return null;
+  const lga = s.adm2.find((a: any) => inPoly(lng, lat, a));
+  const st = (s.adm1 || []).find((a: any) => inPoly(lng, lat, a));
+  if (!lga && !st) return null;
+  return [lga?.name, st?.name && `${st.name} State`].filter(Boolean).join(", ");
 }

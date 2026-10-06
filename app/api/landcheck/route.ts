@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { nearbyFromSnapshot } from "@/lib/osm";
+import { nearbyFromSnapshot, placeAt } from "@/lib/osm";
 import { landCoverAt } from "@/lib/landcover";
 
 export const dynamic = "force-dynamic";
@@ -169,12 +169,13 @@ export async function GET(request: NextRequest) {
   const n = nearbyR.v;
   const accessibility = clamp(100 - (Number.isFinite(n.roadD) ? n.roadD : 2000) / 45);
   const infrastructure = clamp(100 - (Number.isFinite(n.schoolD) ? n.schoolD : 5000) / 80 - (Number.isFinite(n.hospD) ? n.hospD : 8000) / 100);
-  const development = clamp(Math.min(1, n.buildings / 250) * 100);
+  // Buildings are not in the national datasets, so development falls back to road density within 1 km (about 8 km of road = fully built-up).
+  const development = clamp(Math.min(1, ((n as any).buildings > 0 ? (n as any).buildings / 250 : ((n as any).roadLen || 0) / 8000)) * 100);
   const environment = elevation == null ? 60 : 75;
   const score = Math.round(accessibility * .30 + infrastructure * .25 + development * .20 + environment * .25);
 
   return NextResponse.json({
-    lat, lng, place: "Osogbo, Osun State", score,
+    lat, lng, place: placeAt(lat, lng) ?? "Nigeria", score,
     accessibility, infrastructure, development, environment,
     nearestRoad: fmt(n.roadD, n.roadName || "Road", "No nearby mapped road"),
     nearestSchool: fmt(n.schoolD, n.schoolName, "No mapped school nearby"),
@@ -182,6 +183,6 @@ export async function GET(request: NextRequest) {
     elevation: elevation == null ? "Unavailable" : `${Math.round(elevation)} m`,
     slope: "Not yet calculated",
     landCover: landCoverAt(lat, lng) ?? "Not available",
-    source: "OSM/Overpass + Copernicus DEM GLO-90",
+    source: "GRID3 health, HOT/OSM schools, national roads, geoBoundaries + Copernicus DEM",
   });
 }
