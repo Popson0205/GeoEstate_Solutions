@@ -93,10 +93,7 @@ out center qt;`;
 const existingPath = "data/snapshot.json";
 if (fs.existsSync(existingPath) && !process.argv.includes("--overwrite")) {
   const snap = JSON.parse(fs.readFileSync(existingPath, "utf8"));
-  // Keep the national markets already in the snapshot; only add OSM markets that are not within ~120 m of one of them.
-  const have = snap.markets || [];
-  const near = m => have.some(h => Math.hypot((h.lon - m.lon) * Math.cos(m.lat * Math.PI / 180) * 111320, (h.lat - m.lat) * 110540) <= 120);
-  snap.markets = [...have, ...[...points.markets.values()].filter(m => !near(m))]; snap.government = [...points.government.values()];
+  snap.markets = [...points.markets.values()]; snap.government = [...points.government.values()];
   snap.water = [...water.values()]; snap.buildings = [...buildings.values()].flat();
   snap.extrasBbox = BBOX;
   fs.writeFileSync(existingPath, JSON.stringify(snap));

@@ -1,0 +1,15 @@
+{
+ "ncols": 3729,
+ "nrows": 4139,
+ "west": 4.052659572776809,
+ "north": 8.095886835070365,
+ "cellX": 0.00026949458523585647,
+ "cellY": 0.00026949458523585647,
+ "bands": [
+  "jrc_occurrence",
+  "gfd_events",
+  "s1_wet_pct",
+  "s1_dry_pct"
+ ],
+ "source": "JRC GSW, Global Flood Database, Sentinel-1 (via Google Earth Engine)"
+}

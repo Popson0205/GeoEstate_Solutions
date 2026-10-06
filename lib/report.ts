@@ -10,10 +10,6 @@ export function buildReportHtml(r: LandCheckResult): string {
   const eduRows = edu.length
     ? edu.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.kind)}</td><td class="n">${e.d} m</td></tr>`).join("")
     : `<tr><td colspan="3">No mapped education facilities within 2 km.</td></tr>`;
-  const mk = r.marketsNearby ?? [];
-  const mkRows = mk.length
-    ? mk.map(m => `<tr><td>${esc(m.name)}</td><td>${esc([m.type, m.days && `trades ${m.days}`].filter(Boolean).join(" · ") || "n/a")}</td><td class="n">${m.d} m</td></tr>`).join("")
-    : `<tr><td colspan="3">No mapped markets within 3 km.</td></tr>`;
   const metric = (l: string, v: number) => `<div class="m"><span>${l}</span><strong>${v}/100</strong><em>${band(v)}</em></div>`;
   const row = (k: string, v: string) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>GeoEstate LandCheck Report</title>
@@ -36,11 +32,9 @@ button{margin:0 0 14px;padding:8px 14px;border:0;border-radius:8px;background:#0
 <div class="score"><b>${r.score}</b><div><strong>Spatial context score (${band(r.score)})</strong><br><span class="sub">Based on road access, nearby services, development intensity and environment.</span></div></div>
 <div class="grid">${metric("Accessibility", r.accessibility)}${metric("Infrastructure", r.infrastructure)}${metric("Development", r.development)}${metric("Environment", r.environment)}</div>
 <h2>Site context</h2>
-<table>${row("Nearest road", r.nearestRoad)}${row("Nearest school", r.nearestSchool)}${row("Nearest health facility", r.nearestHospital)}${row("Nearest market", r.nearestMarket ?? "Not available")}${row("Elevation", r.elevation)}${row("Slope", r.slope)}${row("Land cover", r.landCover)}</table>
+<table>${row("Nearest road", r.nearestRoad)}${row("Nearest school", r.nearestSchool)}${row("Nearest health facility", r.nearestHospital)}${row("Elevation", r.elevation)}${row("Slope", r.slope)}${row("Flood susceptibility", r.flood || "Not available")}${row("Land cover", r.landCover)}</table>
 <h2>Education facilities within 2 km${r.educationCount != null ? ` (${r.educationCount} mapped)` : ""}</h2>
 <table><tr><td><b>Name</b></td><td><b>Type</b></td><td class="n"><b>Distance</b></td></tr>${eduRows}</table>
-<h2>Markets within 3 km${r.marketCount != null ? ` (${r.marketCount} mapped)` : ""}</h2>
-<table><tr><td><b>Name</b></td><td><b>Type / trading days</b></td><td class="n"><b>Distance</b></td></tr>${mkRows}</table>
-<p class="note"><b>Data sources:</b> ${esc(r.source || "OpenStreetMap, GRID3, Copernicus DEM")}. Education data: HOT/OSM (ODbL). Market locations come from a national markets dataset (GRID3 / eHA / OSGOF); trading days and types are as recorded in that dataset and may be incomplete. This report is a spatial context summary only. It is not a land title search, survey, valuation or flood-risk determination; verify ownership and title with the appropriate government authority.</p>
+<p class="note"><b>Data sources:</b> ${esc(r.source || "OpenStreetMap, GRID3, Copernicus DEM")}. Education data: HOT/OSM (ODbL). This report is a spatial context summary only. It is not a land title search, survey, valuation or flood-risk determination; verify ownership and title with the appropriate government authority.</p>
 </body></html>`;
 }

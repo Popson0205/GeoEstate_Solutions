@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "fetch:osm": "node scripts/fetch-osm.mjs",
-    "patch:markets": "node scripts/patch-markets.mjs"
+    "fetch:osm": "node scripts/fetch-osm.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

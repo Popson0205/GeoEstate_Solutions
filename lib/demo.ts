@@ -14,11 +14,11 @@ export type LandCheckResult = {
   elevation: string;
   slope: string;
   slopeDeg?: number | null;
+  flood?: string;
+  floodClass?: string | null;
+  floodScore?: number | null;
   educationCount?: number | null;
   educationNearby?: { name: string; kind: string; d: number }[];
-  nearestMarket?: string;
-  marketCount?: number | null;
-  marketsNearby?: { name: string; type: string; days: string; freq: string; d: number }[];
   source?: string;
 };
 

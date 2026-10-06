@@ -1,0 +1,16 @@
+{
+ "ncols": 3729,
+ "nrows": 4139,
+ "west": 4.052659572776809,
+ "north": 8.095886835070365,
+ "cellX": 0.00026949458523585647,
+ "cellY": 0.00026949458523585647,
+ "streamKm2": 0.5,
+ "bands": [
+  "hand_m_x2",
+  "twi_x4",
+  "relief_m_plus20"
+ ],
+ "nodata": 255,
+ "source": "ALOS DEM, priority-flood + D8 (GeoEstate)"
+}

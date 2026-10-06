@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { nearbyFromSnapshot, placeAt } from "@/lib/osm";
 import { landCoverAt } from "@/lib/landcover";
 import { slopeAt } from "@/lib/slope";
+import { floodAt } from "@/lib/flood";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -175,7 +176,10 @@ export async function GET(request: NextRequest) {
   const slope = slopeAt(lat, lng);
   // Environment: base 75 (60 without elevation); steep ground lowers it. Flat/gentle (<5°) costs nothing.
   const slopePenalty = slope ? Math.min(30, Math.max(0, slope.mean - 5) * 3) : 0;
-  const environment = clamp((elevation == null ? 60 : 75) - slopePenalty);
+  const flood = floodAt(lat, lng);
+  // High flood susceptibility (score 100) costs up to 30 points; Low (<35) costs under 10.
+  const floodPenalty = flood ? flood.score * 0.3 : 0;
+  const environment = clamp((elevation == null ? 60 : 75) - slopePenalty - floodPenalty);
   const score = Math.round(accessibility * .30 + infrastructure * .25 + development * .20 + environment * .25);
 
   return NextResponse.json({
@@ -184,15 +188,16 @@ export async function GET(request: NextRequest) {
     nearestRoad: fmt(n.roadD, n.roadName || "Road", "No nearby mapped road"),
     nearestSchool: fmt(n.schoolD, n.schoolName, "No mapped school nearby"),
     nearestHospital: fmt(n.hospD, n.hospName, "No mapped hospital nearby"),
-    nearestMarket: (n as any).marketD === undefined ? "Not available" : fmt((n as any).marketD, (n as any).marketName || "Market", "No mapped market nearby"),
-    marketCount: (n as any).marketCount3km ?? null,
-    marketsNearby: (n as any).marketsNearby ?? [],
     elevation: elevation == null ? "Unavailable" : `${Math.round(elevation)} m`,
     educationCount: (n as any).eduCount2km ?? null,
     educationNearby: (n as any).eduNearby ?? [],
     slope: slope ? slope.label : "Not available",
     slopeDeg: slope ? Math.round(slope.mean * 10) / 10 : null,
+    flood: flood ? flood.label : "Not available",
+    floodClass: flood ? flood.cls : null,
+    floodScore: flood ? flood.score : null,
+    floodDetail: flood ? { handM: Math.round(flood.handM * 10) / 10, twi: Math.round(flood.twi * 10) / 10, reliefM: Math.round(flood.reliefM * 10) / 10, terrainScore: flood.terrainScore, observed: flood.observed } : null,
     landCover: landCoverAt(lat, lng) ?? "Not available",
-    source: "GRID3 health, HOT/OSM schools, national markets (GRID3 / eHA / OSGOF), national roads, geoBoundaries + Copernicus DEM + ALOS slope",
+    source: "GRID3 health, HOT/OSM schools, national roads, geoBoundaries + Copernicus DEM + ALOS slope/DEM flood model",
   });
 }

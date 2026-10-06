@@ -29,3 +29,5 @@ The provider layer is deliberately isolated from the UI. External services can t
 - `/api/search` — place search through Open-Meteo geocoding
 - `/api/landcheck` — combines spatial features and elevation into the first provider-backed LandCheck response
 - `lib/slope.ts` — local ALOS slope grid lookup (used by `/api/landcheck`)
+- `lib/flood.ts` — flood susceptibility from `data/flood_terrain_osun.bin.gz` (+ optional `flood_observed_osun.bin.gz`)
+- `scripts/flood/hydro.c`, `scripts/prepare-flood-*.py`, `scripts/gee/*.js` — data preparation (see FLOOD.md)
