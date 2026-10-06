@@ -8,14 +8,16 @@ let grid: Grid | null | undefined;
 
 function load(): Grid | null {
   if (grid !== undefined) return grid;
+  let g: Grid | null = null;
   try {
     const dir = path.join(process.cwd(), "data");
     const h = JSON.parse(fs.readFileSync(path.join(dir, "slope_osun.json"), "utf8"));
     const data = new Uint8Array(zlib.gunzipSync(fs.readFileSync(path.join(dir, "slope_osun.bin.gz"))));
     if (data.length !== h.ncols * h.nrows) throw new Error("slope grid size mismatch");
-    grid = { ...h, data };
-  } catch (e) { console.error("Slope grid unavailable:", (e as Error).message); grid = null; }
-  return grid;
+    g = { ncols: h.ncols, nrows: h.nrows, west: h.west, north: h.north, cellX: h.cellX, cellY: h.cellY, scale: h.scale, nodata: h.nodata, data };
+  } catch (e) { console.error("Slope grid unavailable:", (e as Error).message); }
+  grid = g;
+  return g;
 }
 
 export type SlopeResult = { point: number; mean: number; max: number; band: string; label: string };
