@@ -2,7 +2,8 @@
 """Build the map overlay for the Flood indicator layer from the flood grids (run after prepare-flood-terrain.py,
 and again after prepare-flood-observed.py to include satellite water bodies).
 Usage:  python3 scripts/prepare-flood-overlay.py
-Output: public/flood-overlay-osun.png   (half resolution, ~60 m) + public/flood-overlay-osun.json (bounds)
+Output: data/flood_class_osun.bin.gz (per-cell classes, used by GeoAI area analysis)
+        public/flood-overlay-osun.png   (half resolution, ~60 m) + public/flood-overlay-osun.json (bounds)
 Classes drawn (same scoring as lib/flood.ts): water body > modelled stream > High > Moderate."""
 import os, json, gzip
 import numpy as np
@@ -34,6 +35,9 @@ if os.path.exists(obs_path):
     print("observed evidence included")
 cls = np.zeros((H, W), "uint8")
 cls[(score >= 35)] = 2; cls[(score >= 65)] = 3; cls[hand8 == 0] = 4; cls[water] = 5; cls[~valid] = 0
+# Per-cell class grid for the app's area analysis (GeoAI): 0 low, 2 moderate, 3 high, 4 stream, 5 water body, 255 no data
+full = cls.copy(); full[~valid] = 255
+with gzip.open(os.path.join(root, "data", "flood_class_osun.bin.gz"), "wb", 9) as f: f.write(full.tobytes())
 # half resolution, keeping the highest class in each 2x2 block so thin streams survive
 H2, W2 = (H + 1) // 2, (W + 1) // 2
 pad = np.zeros((H2 * 2, W2 * 2), "uint8"); pad[:H, :W] = cls

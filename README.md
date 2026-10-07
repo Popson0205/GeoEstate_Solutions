@@ -17,6 +17,7 @@ GeoEstate LandCheck is the first pilot of the GeoEstate spatial intelligence pla
 - **Flood susceptibility:** terrain model (HAND/TWI/relief) from the ALOS DEM plus optional Google Earth Engine evidence. See `FLOOD.md`
 - **Markets:** from the Markets in Nigeria dataset (335 in the Osun area), added with `scripts/add-markets.mjs`
 - **Search (v0.17):** live suggestions as you type. Searches the project's own data first (towns, LGAs, schools, health facilities, markets, named roads - works offline), then adds OpenStreetMap (Nominatim) and Open-Meteo results. See `lib/search.ts` and `app/api/search/route.ts`
+- **GeoAI (v0.19):** LGA/area flood-exposure analysis, LGA ranking, pins, briefing report and batch CSV check. See `GEOAI.md`
 - **Google Places (v0.18):** optional; set `GOOGLE_MAPS_API_KEY`. See `GOOGLE_SEARCH.md`
 - **Search (old note):** Open-Meteo geocoding API
 

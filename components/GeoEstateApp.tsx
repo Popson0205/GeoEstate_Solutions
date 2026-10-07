@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { Map as MapLibreMap } from "maplibre-gl";
 import {
-  Search, MapPin, Layers3, Building2, GraduationCap, Hospital,
+  Search, MapPin, Layers3, Sparkles, Building2, GraduationCap, Hospital,
   Route, ShoppingBag, Landmark, Droplets, Trees, X, FileText,
   Crosshair, Menu, ChevronRight
 } from "lucide-react";
 import type { LandCheckResult } from "@/lib/demo";
 import { buildReportHtml } from "@/lib/report";
+import GeoAIPanel from "@/components/GeoAIPanel";
 import { iconDataUri, loadMapIcons, LAYER_GROUPS, HIT_GROUPS, buildPopupHtml, ROAD_COLORS, FLOOD_COLOR } from "@/lib/mapSymbols";
 
 // Text labels need a glyph (font) server. Override both via env if you host your own fonts.
@@ -192,6 +193,8 @@ export default function GeoEstateApp() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [lcReady, setLcReady] = useState(false);
   const [fdReady, setFdReady] = useState(false);
+  const [geoaiOpen, setGeoaiOpen] = useState(false);
+  const getMap = useCallback(() => mapRef.current, []);
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>(
     Object.fromEntries(layers.map(x => [x.id, true]))
   );
@@ -428,6 +431,9 @@ export default function GeoEstateApp() {
           <button className="icon-btn" title="Check current map location" onClick={checkCurrentLocation}>
             <Crosshair size={17}/>
           </button>
+          <button className="icon-btn" title="GeoAI flood exposure analysis" onClick={() => setGeoaiOpen(v => !v)} style={geoaiOpen ? { background: "#0b5d3b", color: "#fff", borderColor: "#0b5d3b" } : undefined}>
+            <Sparkles size={17}/>
+          </button>
           <button className="icon-btn" title="Layers" onClick={() => setMenuOpen(v => !v)}>
             <Layers3 size={17}/>
           </button>
@@ -438,6 +444,10 @@ export default function GeoEstateApp() {
         <aside className="sidebar">
           <div className="sidebar-title">Explore</div>
           <div className="layer-list">
+            <div className="layer-row" onClick={() => setGeoaiOpen(v => !v)}>
+              <div className="layer-left"><Sparkles size={15} color="#0b5d3b"/>GeoAI flood exposure</div>
+              <ChevronRight size={14} color="#9aa69f"/>
+            </div>
             <div className="layer-row" onClick={checkCurrentLocation}>
               <div className="layer-left"><MapPin size={15} color="#0b5d3b"/>Check this location</div>
               <ChevronRight size={14} color="#9aa69f"/>
@@ -510,6 +520,7 @@ export default function GeoEstateApp() {
         <div className="map-wrap">
           <div ref={mapNode} className="map" />
 
+          {geoaiOpen && <GeoAIPanel getMap={getMap} onClose={() => setGeoaiOpen(false)} notify={setNotice} />}
           <div className="map-overlay">
             <div className="map-chip green">OSOGBO • PILOT</div>
             <div className="map-chip">Click map to LandCheck</div>
@@ -574,6 +585,7 @@ export default function GeoEstateApp() {
           <div className="mobile-bottom">
             <button className="active" onClick={flyToOsogbo}><MapPin size={14} style={{verticalAlign:"middle",marginRight:4}}/>Osogbo</button>
             <button onClick={checkCurrentLocation}><Crosshair size={14} style={{verticalAlign:"middle",marginRight:4}}/>LandCheck</button>
+            <button onClick={() => setGeoaiOpen(v => !v)}><Sparkles size={14} style={{verticalAlign:"middle",marginRight:4}}/>GeoAI</button>
             <button onClick={() => setMenuOpen(v => !v)}><Menu size={14} style={{verticalAlign:"middle",marginRight:4}}/>Layers</button>
           </div>
         </div>

@@ -53,3 +53,6 @@ export function slopeAt(lat: number, lng: number, radiusM = 90): SlopeResult | n
   const mean = n ? sum / n : point;
   return { point, mean, max, band: slopeBand(mean), label: `${mean.toFixed(1)}° avg (${slopeBand(mean)}), max ${max.toFixed(1)}° within ${radiusM} m` };
 }
+
+// Raw grid access for area statistics (lib/geoai.ts). Cell value = slope degrees x scale; `nodata` marks gaps.
+export function slopeGrid() { return load(); }

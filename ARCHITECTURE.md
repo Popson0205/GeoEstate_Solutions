@@ -33,3 +33,4 @@ The provider layer is deliberately isolated from the UI. External services can t
 - `scripts/flood/hydro.c`, `scripts/prepare-flood-*.py`, `scripts/gee/*.js` — data preparation (see FLOOD.md)
 - `lib/search.ts` — local place index (towns, LGAs, facilities, markets, roads); `/api/search` merges it with online geocoders
 - `lib/google-places.ts`, `app/api/search/place/route.ts` — Google Places (New) autocomplete + details (optional, key-gated)
+- `lib/geoai.ts`, `lib/geoai-narrative.ts`, `lib/geoai-report-html.ts`, `components/GeoAIPanel.tsx`, `app/api/analyse`, `app/api/batch` — GeoAI (see GEOAI.md)

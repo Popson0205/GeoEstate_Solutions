@@ -96,6 +96,7 @@ export const LAYER_GROUPS: Record<string, string[]> = {
 
 /** Click priority: first group with a hit wins. `pad` is the hit tolerance in screen pixels. */
 export const HIT_GROUPS: { layers: string[]; pad: number }[] = [
+  { layers: ["geoai-exposed", "geoai-safe"], pad: 10 },
   { layers: ["geoestate-schools", "geoestate-hospitals", "geoestate-markets", "geoestate-government"], pad: 10 },
   { layers: ["geoestate-properties"], pad: 8 },
   { layers: ["geoestate-flood-fill", "geoestate-flood"], pad: 6 },
@@ -135,6 +136,12 @@ function specFor(layerId: string, p: Record<string, any>): PopupSpec {
       return { type: "Health facility", img: iconDataUri(healthIconId(p.lvl)), rows: [["Level", p.lvl], ["Type", p.type]] };
     case "geoestate-markets":
       return { type: "Market", img: iconDataUri("market"), rows: [["Type", p.type], ["Goods", p.goods], ["Frequency", p.freq], ["Market days", p.days], ["Settlement", p.settlement], ["Ward", p.ward], ["LGA", p.lga], ["State", p.state]] };
+    case "geoai-exposed": {
+      const T: Record<string, string> = { school: "School", health: "Health facility", market: "Market" };
+      return { type: `${T[p.type] || "Facility"} in ${p.zone} flood-susceptibility zone`, rows: [["Level / type", p.level], ["LGA", p.lga]] };
+    }
+    case "geoai-safe":
+      return { type: "Candidate site (outside flood-susceptible ground)", rows: [["Mean slope", p.meanSlopeDeg != null ? `${p.meanSlopeDeg}°` : ""], ["Nearest road", p.nearestRoadKm != null ? `${p.nearestRoadKm} km` : ""], ["Nearest market", p.nearestMarketKm != null ? `${p.nearestMarketKm} km` : "no market in data"], ["Nearest health facility", p.nearestHealthKm != null ? `${p.nearestHealthKm} km` : ""], ["Note", "Lead only: confirm by survey"]] };
     case "geoestate-government":
       return { type: "Government", img: iconDataUri("gov"), rows: generic() };
     case "geoestate-properties":

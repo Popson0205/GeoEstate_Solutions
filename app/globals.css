@@ -271,3 +271,45 @@ button { cursor: pointer; }
 .geo-pop-table td { color: #1e293b; padding: 2px 0; }
 .geo-pop-more { font-size: 11px; color: #9a3412; margin-top: 8px; }
 .geo-pop-coords { font-size: 10.5px; color: #94a3b8; margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+/* ---------------- GeoAI panel ---------------- */
+.geoai-panel {
+  position: absolute; z-index: 8; left: 16px; top: 64px; bottom: 16px; width: 380px; max-width: calc(100% - 32px);
+  background: rgba(255,255,255,.98); backdrop-filter: blur(16px); border: 1px solid var(--geo-line); border-radius: 16px;
+  box-shadow: var(--geo-shadow); padding: 14px; overflow-y: auto; font-size: 12px; color: #17231d;
+}
+.geoai-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.geoai-row { display: flex; gap: 8px; }
+.geoai-row select { flex: 1; height: 36px; border: 1px solid var(--geo-line); border-radius: 10px; padding: 0 10px; background: #f7f9f8; font-size: 12px; }
+.geoai-check { display: flex; gap: 6px; align-items: center; margin: 8px 0 2px; color: #52635b; font-size: 11px; }
+.geoai-tabs { display: flex; gap: 4px; margin: 10px 0; background: #f1f5f2; border-radius: 10px; padding: 3px; }
+.geoai-tabs button { flex: 1; height: 28px; border: 0; background: transparent; border-radius: 8px; font-size: 11px; font-weight: 700; color: #65736d; }
+.geoai-tabs button.on { background: #fff; color: var(--geo-green); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.geoai-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-radius: 10px; padding: 8px 10px; margin: 8px 0; }
+.geoai-hint { color: #6b7a72; font-size: 11px; line-height: 1.45; margin: 8px 0; }
+.geoai-title { font-size: 15px; font-weight: 800; }
+.geoai-title span { display: block; font-size: 11px; font-weight: 500; color: #6b7a72; margin-top: 2px; }
+.geoai-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
+.geoai-kpis > div { border: 1px solid var(--geo-line); border-radius: 10px; padding: 7px; }
+.geoai-kpis label { display: block; font-size: 9px; color: #84918b; text-transform: uppercase; letter-spacing: .05em; }
+.geoai-kpis strong { display: block; margin-top: 2px; font-size: 14px; }
+.geoai-table { width: 100%; border-collapse: collapse; }
+.geoai-table th { text-align: left; font-size: 10px; color: #84918b; font-weight: 700; padding: 4px 6px; }
+.geoai-table td { padding: 5px 6px; border-top: 1px solid #edf2ee; }
+.geoai-table td.hot { color: #dc2626; font-weight: 800; }
+.geoai-table tr.click { cursor: pointer; } .geoai-table tr.click:hover { background: #f1f6f3; }
+.geoai-scroll { max-height: 46vh; overflow-y: auto; }
+.geoai-sub { font-size: 11px; font-weight: 800; color: #4b5a52; text-transform: uppercase; letter-spacing: .05em; margin: 14px 0 6px; }
+.geoai-tag { font-size: 9px; font-weight: 600; text-transform: none; letter-spacing: 0; color: #6b7a72; border: 1px solid var(--geo-line); border-radius: 99px; padding: 1px 7px; margin-left: 6px; }
+.geoai-text p { margin: 0 0 7px; line-height: 1.5; }
+.geoai-list { display: grid; gap: 3px; }
+.geoai-list button { display: flex; align-items: center; gap: 7px; text-align: left; border: 0; background: #f7f9f8; border-radius: 8px; padding: 6px 8px; font-size: 11px; }
+.geoai-list button:hover { background: #eaf2ed; }
+.geoai-list span { flex: 1; font-weight: 600; } .geoai-list em { color: #84918b; font-style: normal; font-size: 10px; }
+.geoai-actions { display: flex; gap: 6px; margin-top: 12px; }
+.geoai-actions button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; height: 34px; border: 1px solid var(--geo-line); background: #fff; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.geoai-actions button:hover { background: #f1f6f3; }
+.geoai-batch { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--geo-line); }
+.geoai-upload { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px dashed #9aaba2; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.geoai-upload input { display: none; }
+@media (max-width: 760px) { .geoai-panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-width: none; max-height: 62vh; } }
