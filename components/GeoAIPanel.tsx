@@ -14,7 +14,10 @@ function download(name: string, text: string, mime = "text/csv") {
   const url = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
   const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
-const EMPTY_FC = { type: "FeatureCollection", features: [] as any[] };
+const EMPTY_FC = { type: "FeatureCollection" as const, features: [] as any[] };
+// MapLibre's strict expression/GeoJSON types reject plain object literals; these thin wrappers accept them.
+const addLayer = (map: MapLibreMap, layer: any) => map.addLayer(layer);
+const addSource = (map: MapLibreMap, id: string, source: any) => map.addSource(id, source);
 
 export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
   const [lgas, setLgas] = useState<string[]>([]);
@@ -30,16 +33,16 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
 
   /* ---- map layers owned by this panel ---- */
   const ensureLayers = useCallback((map: MapLibreMap) => {
-    if (!map.getSource("geoai-lga")) map.addSource("geoai-lga", { type: "geojson", data: lgaFc.current ?? EMPTY_FC });
-    if (!map.getLayer("geoai-lga-fill")) map.addLayer({ id: "geoai-lga-fill", type: "fill", source: "geoai-lga", paint: {
+    if (!map.getSource("geoai-lga")) addSource(map, "geoai-lga", { type: "geojson", data: lgaFc.current ?? EMPTY_FC });
+    if (!map.getLayer("geoai-lga-fill")) addLayer(map, { id: "geoai-lga-fill", type: "fill", source: "geoai-lga", paint: {
       "fill-color": ["interpolate", ["linear"], ["to-number", ["get", "exposureIndex"], 0], 12, "#fff3cd", 20, "#fdbb84", 28, "#e34a33", 36, "#7f0000"], "fill-opacity": 0 } });
-    if (!map.getLayer("geoai-lga-line")) map.addLayer({ id: "geoai-lga-line", type: "line", source: "geoai-lga", paint: { "line-color": "#475569", "line-width": 1, "line-opacity": 0.7 } });
-    if (!map.getLayer("geoai-lga-selected")) map.addLayer({ id: "geoai-lga-selected", type: "line", source: "geoai-lga", filter: ["==", ["get", "name"], "__none__"], paint: { "line-color": "#0f172a", "line-width": 3 } });
-    if (!map.getSource("geoai-pins")) map.addSource("geoai-pins", { type: "geojson", data: EMPTY_FC });
-    if (!map.getLayer("geoai-exposed")) map.addLayer({ id: "geoai-exposed", type: "circle", source: "geoai-pins", paint: {
+    if (!map.getLayer("geoai-lga-line")) addLayer(map, { id: "geoai-lga-line", type: "line", source: "geoai-lga", paint: { "line-color": "#475569", "line-width": 1, "line-opacity": 0.7 } });
+    if (!map.getLayer("geoai-lga-selected")) addLayer(map, { id: "geoai-lga-selected", type: "line", source: "geoai-lga", filter: ["==", ["get", "name"], "__none__"], paint: { "line-color": "#0f172a", "line-width": 3 } });
+    if (!map.getSource("geoai-pins")) addSource(map, "geoai-pins", { type: "geojson", data: EMPTY_FC });
+    if (!map.getLayer("geoai-exposed")) addLayer(map, { id: "geoai-exposed", type: "circle", source: "geoai-pins", paint: {
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 4, 14, 8], "circle-color": ["match", ["get", "zone"], "High", "#dc2626", "#f59e0b"], "circle-stroke-color": "#fff", "circle-stroke-width": 1.6 } });
-    if (!map.getSource("geoai-safe-src")) map.addSource("geoai-safe-src", { type: "geojson", data: EMPTY_FC });
-    if (!map.getLayer("geoai-safe")) map.addLayer({ id: "geoai-safe", type: "circle", source: "geoai-safe-src", paint: {
+    if (!map.getSource("geoai-safe-src")) addSource(map, "geoai-safe-src", { type: "geojson", data: EMPTY_FC });
+    if (!map.getLayer("geoai-safe")) addLayer(map, { id: "geoai-safe", type: "circle", source: "geoai-safe-src", paint: {
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 5, 14, 10], "circle-color": "#16a34a", "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
   }, []);
 
@@ -80,7 +83,7 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
       const pins = [...d.exposedAssets.high, ...d.exposedAssets.moderate].map((x: any) => ({ type: "Feature", geometry: { type: "Point", coordinates: [x.lon, x.lat] }, properties: { type: x.type, name: x.name, level: x.level, zone: x.zone, lga: x.lga } }));
       (map.getSource("geoai-pins") as any)?.setData({ type: "FeatureCollection", features: pins });
       (map.getSource("geoai-safe-src") as any)?.setData({ type: "FeatureCollection", features: d.safeSites.map((s: any) => ({ type: "Feature", geometry: { type: "Point", coordinates: [s.lon, s.lat] }, properties: s })) });
-      if (map.getLayer("geoai-lga-selected")) map.setFilter("geoai-lga-selected", ["==", ["get", "name"], d.scope === "lga" ? d.name : "__none__"]);
+      if (map.getLayer("geoai-lga-selected")) map.setFilter("geoai-lga-selected", ["==", ["get", "name"], d.scope === "lga" ? d.name : "__none__"] as any);
       if (d.scope === "lga") map.fitBounds([[d.bbox[0], d.bbox[1]], [d.bbox[2], d.bbox[3]]], { padding: { top: 70, bottom: 40, left: 420, right: 60 }, duration: 900 });
     } catch (e) { setError((e as Error).message); setResult(null); }
     setLoading(false);
