@@ -16,7 +16,9 @@ GeoEstate LandCheck is the first pilot of the GeoEstate spatial intelligence pla
 - **Slope:** ALOS-derived slope (degrees, ~30 m) for Osun State, served from `data/slope_osun.bin.gz`. Regenerate with `python3 scripts/prepare-slope.py alos_slope_deg_osun.tif`. Reports the mean and max slope within 90 m of the point, and lowers the Environment score above 5° mean slope
 - **Flood susceptibility:** terrain model (HAND/TWI/relief) from the ALOS DEM plus optional Google Earth Engine evidence. See `FLOOD.md`
 - **Markets:** from the Markets in Nigeria dataset (335 in the Osun area), added with `scripts/add-markets.mjs`
-- **Search:** Open-Meteo geocoding API
+- **Search (v0.17):** live suggestions as you type. Searches the project's own data first (towns, LGAs, schools, health facilities, markets, named roads - works offline), then adds OpenStreetMap (Nominatim) and Open-Meteo results. See `lib/search.ts` and `app/api/search/route.ts`
+- **Google Places (v0.18):** optional; set `GOOGLE_MAPS_API_KEY`. See `GOOGLE_SEARCH.md`
+- **Search (old note):** Open-Meteo geocoding API
 
 The browser talks to GeoEstate's own `/api/*` routes. Provider calls are therefore server-side, making it possible to add caching, rate limiting, provider switching, and PostGIS analysis without rewriting the UI.
 

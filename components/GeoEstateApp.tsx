@@ -178,6 +178,15 @@ export default function GeoEstateApp() {
   const mapRef = useRef<MapLibreMap | null>(null);
   const [selected, setSelected] = useState<LandCheckResult | null>(null);
   const [search, setSearch] = useState("");
+  type SearchHit = { name: string; kind?: string; sub?: string; latitude: number | null; longitude: number | null; zoom?: number; placeId?: string; source?: string };
+  // One Google session token per typing session (typing -> pick); keeps Google billing to a single session.
+  const sessionRef = useRef<string>(typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Math.random()).slice(2));
+  const [sResults, setSResults] = useState<SearchHit[]>([]);
+  const [sOpen, setSOpen] = useState(false);
+  const [sActive, setSActive] = useState(-1);
+  const [sLoading, setSLoading] = useState(false);
+  const [sDone, setSDone] = useState(false);
+  const [sError, setSError] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -315,6 +324,44 @@ export default function GeoEstateApp() {
     w.document.open(); w.document.write(buildReportHtml(selected)); w.document.close();
   }
 
+  // Live place search: debounced, cancels stale requests, shows suggestions as you type.
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) { setSResults([]); setSDone(false); setSLoading(false); setSError(false); return; }
+    const ctl = new AbortController();
+    setSLoading(true); setSDone(false);
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&token=${sessionRef.current}`, { signal: ctl.signal });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Search failed");
+        setSResults(d.results ?? []); setSError(false);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        console.error("GeoEstate search failed", err); setSResults([]); setSError(true);
+      }
+      setSLoading(false); setSDone(true);
+    }, 250);
+    return () => { clearTimeout(t); ctl.abort(); };
+  }, [search]);
+
+  async function pickPlace(hit: SearchHit) {
+    setSearch(hit.name); setSOpen(false); setSActive(-1);
+    let { latitude, longitude, zoom } = hit;
+    if (hit.placeId) {                                   // Google suggestion: look up its coordinates now
+      try {
+        const r = await fetch(`/api/search/place?id=${encodeURIComponent(hit.placeId)}&token=${sessionRef.current}`);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Lookup failed");
+        latitude = d.latitude; longitude = d.longitude; zoom = d.zoom;
+      } catch (err) { console.error("GeoEstate place lookup failed", err); setNotice("Could not locate that place. Please try another result."); return; }
+      finally { sessionRef.current = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Math.random()).slice(2); }
+    }
+    if (latitude == null || longitude == null) return;
+    mapRef.current?.flyTo({ center: [longitude, latitude], zoom: zoom ?? 15, duration: 900 });
+  }
+  function runSearchNow() { setSOpen(true); } // results arrive via the debounced effect; just make sure the list is visible
+
   function checkCurrentLocation() {
     const map = mapRef.current;
     if (!map) return;
@@ -340,21 +387,41 @@ export default function GeoEstateApp() {
           <Search size={16} className="search-icon"/>
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={async e => {
-              if (e.key !== "Enter" || !search.trim()) return;
-              try {
-                const response = await fetch(`/api/search?q=${encodeURIComponent(search.trim())}`);
-                const data = await response.json();
-                const result = data.results?.[0];
-                if (result) {
-                  mapRef.current?.flyTo({ center: [result.longitude, result.latitude], zoom: 15, duration: 900 });
-                }
-              } catch (error) { console.error("GeoEstate search failed", error); }
+            onChange={e => { setSearch(e.target.value); setSOpen(true); setSActive(-1); }}
+            onFocus={() => setSOpen(true)}
+            onBlur={() => setTimeout(() => setSOpen(false), 150)}
+            onKeyDown={e => {
+              if (e.key === "ArrowDown") { e.preventDefault(); setSActive(i => Math.min(sResults.length - 1, i + 1)); }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setSActive(i => Math.max(-1, i - 1)); }
+              else if (e.key === "Escape") setSOpen(false);
+              else if (e.key === "Enter") {
+                e.preventDefault();
+                const hit = sResults[sActive >= 0 ? sActive : 0];
+                if (hit) pickPlace(hit); else runSearchNow();
+              }
             }}
             placeholder="Search Osogbo, street or place..."
             aria-label="Search location"
+            autoComplete="off"
           />
+          {sOpen && search.trim().length >= 2 && (
+            <div className="search-results" role="listbox">
+              {sResults.map((r, i) => (
+                <div key={`${r.placeId ?? r.name}-${i}`} role="option" aria-selected={i === sActive}
+                  className={`search-item ${i === sActive ? "active" : ""}`}
+                  onMouseDown={e => { e.preventDefault(); pickPlace(r); }} onMouseEnter={() => setSActive(i)}>
+                  <MapPin size={14} className="search-item-icon"/>
+                  <div className="search-item-text">
+                    <div className="search-item-name">{r.name}</div>
+                    <div className="search-item-sub">{[r.kind, r.sub].filter(Boolean).join(" · ")}</div>
+                  </div>
+                </div>
+              ))}
+              {sLoading && <div className="search-note">Searching…</div>}
+              {sResults.some(r => r.source === "Google") && <div className="search-note" style={{ textAlign: "right", fontSize: 10 }}>Powered by Google</div>}
+              {!sLoading && sDone && sResults.length === 0 && <div className="search-note">{sError ? "Search is unavailable right now. Please try again." : `No places found for “${search.trim()}”. Try a town, LGA, school, market or road name.`}</div>}
+            </div>
+          )}
         </div>
 
         <div className="top-actions">

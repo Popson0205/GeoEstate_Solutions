@@ -31,3 +31,5 @@ The provider layer is deliberately isolated from the UI. External services can t
 - `lib/slope.ts` — local ALOS slope grid lookup (used by `/api/landcheck`)
 - `lib/flood.ts` — flood susceptibility from `data/flood_terrain_osun.bin.gz` (+ optional `flood_observed_osun.bin.gz`)
 - `scripts/flood/hydro.c`, `scripts/prepare-flood-*.py`, `scripts/gee/*.js` — data preparation (see FLOOD.md)
+- `lib/search.ts` — local place index (towns, LGAs, facilities, markets, roads); `/api/search` merges it with online geocoders
+- `lib/google-places.ts`, `app/api/search/place/route.ts` — Google Places (New) autocomplete + details (optional, key-gated)

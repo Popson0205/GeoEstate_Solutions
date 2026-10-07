@@ -77,6 +77,17 @@ button { cursor: pointer; }
   background: white;
   box-shadow: 0 0 0 4px rgba(11,93,59,.07);
 }
+.search-results {
+  position: absolute; top: 48px; left: 0; right: 0; z-index: 40;
+  background: #fff; border: 1px solid var(--geo-line); border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(15,23,20,.18); overflow: hidden; max-height: 60vh; overflow-y: auto;
+}
+.search-item { display: flex; gap: 10px; align-items: flex-start; padding: 9px 13px; cursor: pointer; }
+.search-item.active, .search-item:hover { background: #f1f6f3; }
+.search-item-icon { color: #0b5d3b; margin-top: 3px; flex: none; }
+.search-item-name { font-size: 13px; font-weight: 600; color: #17251e; }
+.search-item-sub { font-size: 11px; color: #6b7a72; margin-top: 1px; }
+.search-note { padding: 11px 14px; font-size: 12px; color: #6b7a72; }
 .search-icon {
   position: absolute; left: 14px; top: 12px; color: #7b8b84;
 }
