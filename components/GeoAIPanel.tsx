@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { Sparkles, X, FileText, Download, Upload, MapPin } from "lucide-react";
+import { Sparkles, X, FileText, Download, Upload, MapPin, Image as ImageIcon } from "lucide-react";
 import { buildGeoAiReportHtml } from "@/lib/geoai-report-html";
+import { makePoster, type PosterKind } from "@/lib/poster-client";
 
 // GeoAI: flood-exposure analysis for an LGA or the current map view, with pins, LGA ranking, a printable briefing and batch CSV checks.
 // All figures come from /api/analyse (the project's own flood, slope and facility data); the AI only words the summary.
@@ -29,6 +30,7 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
   const [result, setResult] = useState<any | null>(null);
   const [choro, setChoro] = useState(true);
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
+  const [posterBusy, setPosterBusy] = useState<PosterKind | null>(null);
   const lgaFc = useRef<any | null>(null);
 
   /* ---- map layers owned by this panel ---- */
@@ -94,6 +96,15 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
     const w = window.open("", "_blank");
     if (!w) { notify("Your browser blocked the report window. Allow pop-ups for this site and try again."); return; }
     w.document.open(); w.document.write(buildGeoAiReportHtml(result, ranking)); w.document.close();
+  };
+  const poster = async (kind: PosterKind) => {
+    if (!result || result.scope !== "lga") return;
+    // open the print window inside the click so pop-up blockers allow it
+    const w = kind === "a2-pdf" ? window.open("", "_blank") : null;
+    setPosterBusy(kind); notify(null);
+    try { await makePoster(result.name, kind, w); }
+    catch (e) { w?.close(); notify((e as Error).message || "Could not make the poster."); }
+    setPosterBusy(null);
   };
   const exportExposed = () => {
     const rows = [...result.exposedAssets.high, ...result.exposedAssets.moderate];
@@ -167,6 +178,14 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
             <button onClick={openReport}><FileText size={13}/> Briefing report</button>
             <button onClick={exportExposed}><Download size={13}/> Exposed facilities CSV</button>
           </div>
+          {result.scope === "lga" && <>
+            <div className="geoai-sub">Poster <span className="geoai-tag">{result.name} LGA</span></div>
+            <div className="geoai-actions">
+              <button disabled={!!posterBusy} onClick={() => poster("a2-pdf")}><FileText size={13}/> {posterBusy === "a2-pdf" ? "Preparing…" : "A2 poster (PDF)"}</button>
+              <button disabled={!!posterBusy} onClick={() => poster("a2-jpg")}><ImageIcon size={13}/> {posterBusy === "a2-jpg" ? "Rendering…" : "A2 poster (JPEG)"}</button>
+              <button disabled={!!posterBusy} onClick={() => poster("social-jpg")}><ImageIcon size={13}/> {posterBusy === "social-jpg" ? "Rendering…" : "Social post (JPEG)"}</button>
+            </div>
+          </>}
         </div>
       )}
 

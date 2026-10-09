@@ -3,6 +3,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { getSnapshot } from "@/lib/osm";
 import { slopeGrid } from "@/lib/slope";
+import { encodeIndexedPng } from "@/lib/png";
 
 // GeoAI area analysis: flood susceptibility, slope, assets and roads for an LGA or a map window.
 // All numbers come from the project's grids and datasets; the language model (lib/geoai-narrative.ts) only words them.
@@ -222,3 +223,60 @@ export function analyse(spec: { lga: string } | { bbox: [number, number, number,
     exposedAssets: { highCount: high, moderateCount: mod, high: pins("High", 150), moderate: pins("Moderate", 100) },
     safeSites: safeSites(c, sp), generatedAt: new Date().toISOString().slice(0, 10) };
 }
+
+/* ----------------------------------------------------------------------- poster data */
+// Everything the poster needs beyond analyse(): the LGA map raster (flood zones, tinted by slope on Low ground), boundary, roads, facility points and slope bands.
+// Zone codes in `points`: H = High, M = Moderate, L = Low. Road arrays are flat [x0,y0,x1,y1,...] segments in lon/lat.
+const MAP_PALETTE: [number, number, number, number][] = [
+  [0, 0, 0, 0],                                                                   // 0 outside LGA / no data
+  [232, 241, 223, 255], [214, 232, 201, 255], [193, 218, 177, 255], [168, 200, 150, 255], // 1-4 Low ground by slope (<2, 2-5, 5-10, 10+ deg)
+  [244, 194, 107, 255],                                                           // 5 Moderate
+  [192, 57, 43, 255],                                                             // 6 High
+  [31, 111, 178, 255], [42, 127, 214, 255],                                       // 7 modelled stream, 8 satellite water body
+];
+export function posterExtras(name: string) {
+  const c = load(); if (!c) return null;
+  const idx = c.lgas.findIndex(l => l.name === name); if (idx < 0) return null;
+  const L = c.lgas[idx], sp = L.spans, g = c.g, sg = c.slope;
+  const { r0, r1, c0, c1 } = sp, W = c1 - c0 + 1, H = r1 - r0 + 1;
+  const step = Math.max(1, Math.ceil(Math.max(W, H) / 1500)), ow = Math.ceil(W / step), oh = Math.ceil(H / step);
+  const px = new Uint8Array(ow * oh);
+  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) {
+    const r = Math.min(r1, r0 + y * step + (step >> 1)), col = Math.min(c1, c0 + x * step + (step >> 1)), i = r * g.ncols + col;
+    if (c.label[i] !== idx) continue; const v = c.cls[i]; if (v === CELL_NODATA) continue;
+    let k: number;
+    if (v === 2) k = 5; else if (v === 3) k = 6; else if (v === 4) k = 7; else if (v === 5) k = 8;
+    else { const q = sg ? sg.data[i] : 0; const d = sg && q !== sg.nodata ? q / sg.scale : 0; k = d < 2 ? 1 : d < 5 ? 2 : d < 10 ? 3 : 4; }
+    px[y * ow + x] = k;
+  }
+  const png = encodeIndexedPng(ow, oh, px, MAP_PALETTE);
+  const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
+  const mapBox = [r4(g.west + c0 * g.cellX), r4(g.north - (r1 + 1) * g.cellY), r4(g.west + (c1 + 1) * g.cellX), r4(g.north - r0 * g.cellY)];
+  // roads (tracks left out), split by major/minor and by whether the segment midpoint is in a High zone
+  const roads = { majorHigh: [] as number[], majorOther: [] as number[], minorHigh: [] as number[], minorOther: [] as number[] };
+  const MAJOR = /^(trunk|primary|secondary|tertiary)(_link)?$/;
+  for (const rd of getSnapshot()?.roads || []) {
+    if (rd.h === "track") continue; const pts: number[][] = rd.g || []; const major = MAJOR.test(rd.h || "");
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1]; const [mr, mc] = rc(g, (x0 + x1) / 2, (y0 + y1) / 2);
+      if (mr < 0 || mc < 0 || mr >= g.nrows || mc >= g.ncols) continue; const k = mr * g.ncols + mc;
+      if (c.label[k] !== idx || c.cls[k] === CELL_NODATA) continue;
+      const hi = zoneOf(c.cls[k]) === "High"; (major ? (hi ? roads.majorHigh : roads.majorOther) : (hi ? roads.minorHigh : roads.minorOther)).push(r4(x0), r4(y0), r4(x1), r4(y1));
+    }
+  }
+  const points = c.assets.filter(a => a.lga === idx).map(a => [a.type[0], r4(a.lon), r4(a.lat), zoneOf(a.cls)[0]]);
+  // slope bands (share of LGA area)
+  const bands = [0, 0, 0, 0, 0]; let tot = 0;
+  if (sg) for (const [r, a] of sp.rows) { const A = cellArea(g, r); for (let k = 0; k < a.length; k += 2) for (let col = a[k]; col <= a[k + 1]; col++) {
+    const i = r * g.ncols + col; if (c.cls[i] === CELL_NODATA) continue; const q = sg.data[i]; if (q === sg.nodata) continue; const d = q / sg.scale;
+    bands[d < 2 ? 0 : d < 5 ? 1 : d < 10 ? 2 : d < 15 ? 3 : 4] += A; tot += A; } }
+  const polys: number[][][][] = L.geom.type === "Polygon" ? [L.geom.coordinates] : L.geom.coordinates;
+  return {
+    mapPng: "data:image/png;base64," + png.toString("base64"), mapBox, mapSize: [ow, oh],
+    boundary: polys.map(p => p.map(ring => ring.map(([x, y]) => [r4(x), r4(y)]))),
+    roads, points,
+    slopeBands: ["< 2°", "2–5°", "5–10°", "10–15°", "15°+"].map((label, i) => ({ label, pct: tot ? Math.round((bands[i] / tot) * 1000) / 10 : 0 })),
+    snapshotDate: getSnapshot()?.fetchedAt ?? null,
+  };
+}
+

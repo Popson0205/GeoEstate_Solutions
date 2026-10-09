@@ -33,3 +33,12 @@ python3 scripts/prepare-flood-overlay.py                          # per-cell flo
 - Facility data is incomplete (e.g. ~140 schools statewide), so a zero can mean missing data; ranking leans on health facilities.
 - LGA boundaries are simplified geoBoundaries; areas may differ from official figures. A national dataset covers other states, but only Osun's grids exist.
 - High zones are ~22% of Osun in the current calibration (see FLOOD.md) - validate before official use.
+
+## Posters (per LGA)
+Select an LGA, press Analyse, then use the **Poster** buttons: A2 poster (PDF, opens a print view sized 420 x 594 mm), A2 poster (JPEG, ~150 dpi) and Social post (JPEG, 1080 x 1350).
+- Data: `GET /api/poster-data?lga=Osogbo` (figures, LGA map raster, roads, facility points, slope bands, 30-LGA ranking). Built in `posterExtras()` in `lib/geoai.ts`.
+- Layout and wording: `lib/geoai-poster.ts` (one SVG per format). Conclusion and recommendations are rule-based from the figures (no AI call), so each LGA gets its own reproducible text.
+- Browser delivery: `lib/poster-client.ts`. QR codes: `lib/qr.ts` (WhatsApp always; a LandCheck QR is added when the app runs on a public address).
+- Batch: `node scripts/generate-posters.mjs [--lga "Ife South"] [--url https://your-app/] [--out posters] [--svg-only]` (Node 22.18+; JPEG needs `sharp`, PDF needs `playwright` + Chromium; otherwise SVGs are written). A harmless "Module type of file" warning may print.
+- Wording rules: "susceptibility", never "risk"; facility counts say "mapped", and zero means none mapped so far. Land cover is not on the poster because that raster exists for Osogbo only.
+
