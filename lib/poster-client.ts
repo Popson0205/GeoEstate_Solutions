@@ -1,44 +1,74 @@
-import { buildPosterSvg, posterSize, type PosterFormat } from "@/lib/geoai-poster";
+// Browser side of the GeoAI poster: fetch data, colour the zone raster, build the SVG, rasterise to JPEG, zip for batches.
+import { ZONE } from "./poster-kit";
+import { buildA2Svg, buildSocialSvg, A2, SOCIAL, type PosterAssets, type PosterData } from "./poster-svg";
 
-// Browser-side poster delivery for the GeoAI panel: fetch the figures, build the SVG, then save a JPEG (canvas) or open a print view (PDF).
-export type PosterKind = "a2-pdf" | "a2-jpg" | "social-jpg";
-
-async function toDataUri(url: string): Promise<string> {
-  const blob = await (await fetch(url)).blob();
-  return await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("Could not read the logo")); r.readAsDataURL(blob); });
+const hex = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+export function decodeRle(b64: string, n: number): Uint8Array {
+  const bin = atob(b64), out = new Uint8Array(n); let p = 0;
+  for (let i = 0; i + 2 < bin.length && p < n; i += 3) { const v = bin.charCodeAt(i), len = bin.charCodeAt(i + 1) | (bin.charCodeAt(i + 2) << 8); out.fill(v, p, Math.min(n, p + len)); p += len; }
+  return out;
 }
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-// A QR code to LandCheck only makes sense on a public address.
-const publicOrigin = () => (/^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname) ? null : location.origin + "/");
-
-async function svgToJpeg(svg: string, w: number, h: number, scale: number): Promise<Blob> {
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-  try {
-    const img = new Image();
-    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error("The browser could not draw the poster")); img.src = url; });
-    const c = document.createElement("canvas"); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
-    const ctx = c.getContext("2d"); if (!ctx) throw new Error("Canvas is not available");
-    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
-    return await new Promise<Blob>((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error("Could not encode the JPEG"))), "image/jpeg", 0.92));
-  } finally { URL.revokeObjectURL(url); }
+// Colour the per-cell flood classes (1/0 Low, 2 Moderate, 3 High, 4 stream, 5 water, 255 outside) and upscale smoothly.
+export function zoneRasterDataUri(r: { ncols: number; nrows: number; rle: string }, scale = 3): string {
+  const cls = decodeRle(r.rle, r.ncols * r.nrows), c = document.createElement("canvas"); c.width = r.ncols; c.height = r.nrows;
+  const ctx = c.getContext("2d")!, img = ctx.createImageData(r.ncols, r.nrows), pal: Record<number, number[]> = { 2: hex(ZONE.mod), 3: hex(ZONE.high), 4: hex(ZONE.water), 5: hex(ZONE.water) }, low = hex(ZONE.low);
+  for (let i = 0; i < cls.length; i++) { const v = cls[i]; if (v === 255) continue; const col = pal[v] || low; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+  const big = document.createElement("canvas"); big.width = r.ncols * scale; big.height = r.nrows * scale;
+  const b = big.getContext("2d")!; b.imageSmoothingEnabled = true; b.imageSmoothingQuality = "high"; b.drawImage(c, 0, 0, big.width, big.height);
+  return big.toDataURL("image/png");
 }
-function saveBlob(name: string, blob: Blob) {
-  const url = URL.createObjectURL(blob), a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+const toDataUri = (blob: Blob) => new Promise<string>((res, rej) => { const f = new FileReader(); f.onload = () => res(String(f.result)); f.onerror = rej; f.readAsDataURL(blob); });
+let shared: Promise<{ logo: string; lgaFc: any }> | null = null;
+export function loadSharedAssets() {
+  return (shared ??= (async () => {
+    const [logo, fc] = await Promise.all([fetch("/geoestate-logo.png").then(r => r.blob()).then(toDataUri), fetch("/lga-osun.geojson").then(r => r.json())]);
+    return { logo, lgaFc: fc };
+  })().catch(e => { shared = null; throw e; }));
+}
+export async function fetchPosterData(lga: string): Promise<PosterData> {
+  const r = await fetch(`/api/poster-data?lga=${encodeURIComponent(lga)}`); const j = await r.json();
+  if (!r.ok) throw new Error(j.error || "Could not load poster data");
+  return j;
+}
+export function svgToJpeg(svg: string, w: number, h: number, outW: number, quality = 0.92): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" })), img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas"), k = outW / w; c.width = Math.round(w * k); c.height = Math.round(h * k);
+        const x = c.getContext("2d")!; x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url); c.toBlob(b => (b ? resolve(b) : reject(new Error("JPEG export failed"))), "image/jpeg", quality);
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Poster could not be rendered")); };
+    img.src = url;
+  });
+}
+export const A2_PX = 3307; // A2 (420 mm) at ~200 dpi = 3307 x 4677 px (15.5 MP, inside the mobile canvas limit)
+export type PosterKind = "a2" | "social";
+export async function makePoster(lga: string, kind: PosterKind, prefetched?: PosterData): Promise<{ blob: Blob; name: string }> {
+  const [shared2, data] = await Promise.all([loadSharedAssets(), prefetched ? Promise.resolve(prefetched) : fetchPosterData(lga)]);
+  const assets: PosterAssets = { ...shared2, zoneImg: zoneRasterDataUri(data.map.raster, kind === "a2" ? 3 : 2) };
+  const slug = data.analysis.name.replace(/\W+/g, "-");
+  if (kind === "a2") return { blob: await svgToJpeg(buildA2Svg(data, assets), A2.w, A2.h, A2_PX), name: `GeoEstate_${slug}_LGA_Flood_Poster_A2.jpg` };
+  return { blob: await svgToJpeg(buildSocialSvg(data, assets), SOCIAL.w, SOCIAL.h, 2160, 0.9), name: `GeoEstate_${slug}_LGA_Flood_Post_1080x1350.jpg` };
 }
 
-export async function makePoster(lga: string, kind: PosterKind, printWindow?: Window | null): Promise<void> {
-  const [res, logo] = await Promise.all([fetch(`/api/poster-data?lga=${encodeURIComponent(lga)}`), toDataUri("/geoestate-logo.png")]);
-  const bundle = await res.json(); if (!res.ok) throw new Error(bundle.error || "Poster data unavailable");
-  const format: PosterFormat = kind === "social-jpg" ? "social" : "a2", size = posterSize(format);
-  const svg = buildPosterSvg(bundle, { format, logo, appUrl: publicOrigin() });
-  const name = `geoestate-${slug(lga)}-flood-poster-${format}`;
-  if (kind === "a2-pdf") {
-    const w = printWindow ?? window.open("", "_blank"); if (!w) throw new Error("Your browser blocked the poster window. Allow pop-ups for this site and try again.");
-    w.document.open();
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${name}</title><style>@page{size:420mm 594mm;margin:0}html,body{margin:0;background:#fff}svg{display:block;width:420mm;height:594mm}.bar{font:14px Arial;padding:10px 16px;background:#0c2a4d;color:#fff}.bar button{margin-left:12px;padding:6px 12px;border:0;border-radius:6px;background:#2e7d32;color:#fff;font-weight:700;cursor:pointer}@media print{.bar{display:none}}</style></head><body><div class="bar">A2 poster. Choose paper size A2 (or "Save as PDF" with margins set to none).<button onclick="window.print()">Print / Save as PDF</button></div>${svg}</body></html>`);
-    w.document.close();
-    return;
+/* ---- minimal ZIP (store only) so a batch of 30 JPEGs downloads as one file ---- */
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = (b: Uint8Array) => { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+export function zipStore(files: { name: string; data: Uint8Array }[]): Blob {
+  const parts: BlobPart[] = [], central: BlobPart[] = []; let off = 0, cdSize = 0; const enc = new TextEncoder();
+  for (const f of files) {
+    const nm = enc.encode(f.name), crc = crc32(f.data), h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint32(14, crc, true); h.setUint32(18, f.data.length, true); h.setUint32(22, f.data.length, true); h.setUint16(26, nm.length, true);
+    parts.push(h.buffer, nm as BlobPart, f.data as BlobPart);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint32(16, crc, true); c.setUint32(20, f.data.length, true); c.setUint32(24, f.data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+    central.push(c.buffer, nm as BlobPart); cdSize += 46 + nm.length; off += 30 + nm.length + f.data.length;
   }
-  const scale = kind === "a2-jpg" ? 0.59 : 1;            // A2 at ~150 dpi (2478 x 3505 px); social at 1080 x 1350
-  saveBlob(`${name}.jpg`, await svgToJpeg(svg, size.w, size.h, scale));
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
 }
+export const downloadBlob = (blob: Blob, name: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };

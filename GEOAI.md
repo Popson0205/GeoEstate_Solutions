@@ -34,11 +34,20 @@ python3 scripts/prepare-flood-overlay.py                          # per-cell flo
 - LGA boundaries are simplified geoBoundaries; areas may differ from official figures. A national dataset covers other states, but only Osun's grids exist.
 - High zones are ~22% of Osun in the current calibration (see FLOOD.md) - validate before official use.
 
-## Posters (per LGA)
-Select an LGA, press Analyse, then use the **Poster** buttons: A2 poster (PDF, opens a print view sized 420 x 594 mm), A2 poster (JPEG, ~150 dpi) and Social post (JPEG, 1080 x 1350).
-- Data: `GET /api/poster-data?lga=Osogbo` (figures, LGA map raster, roads, facility points, slope bands, 30-LGA ranking). Built in `posterExtras()` in `lib/geoai.ts`.
-- Layout and wording: `lib/geoai-poster.ts` (one SVG per format). Conclusion and recommendations are rule-based from the figures (no AI call), so each LGA gets its own reproducible text.
-- Browser delivery: `lib/poster-client.ts`. QR codes: `lib/qr.ts` (WhatsApp always; a LandCheck QR is added when the app runs on a public address).
-- Batch: `node scripts/generate-posters.mjs [--lga "Ife South"] [--url https://your-app/] [--out posters] [--svg-only]` (Node 22.18+; JPEG needs `sharp`, PDF needs `playwright` + Chromium; otherwise SVGs are written). A harmless "Module type of file" warning may print.
-- Wording rules: "susceptibility", never "risk"; facility counts say "mapped", and zero means none mapped so far. Land cover is not on the poster because that raster exists for Osogbo only.
+## LGA posters (A2 print + social post)
 
+The GeoAI panel can produce a presentation poster for any of the 30 Osun LGAs, in the style of an academic conference poster. It is meant for printing and for posting on social media as advertising for GeoEstate.
+
+**Where:** GeoAI panel, analyse an LGA, then use **Poster A2 (JPEG)** or **Social post (JPEG)**. In the Ranking tab, **All 30 LGA posters (ZIP)** makes both formats for every LGA with a progress message (A2_print/ and Social_1080x1350/ folders).
+
+**Formats**
+- A2 print: 420 x 594 mm, 3307 x 4677 px (about 200 dpi). Print at 100% on A2.
+- Social: 1080 x 1350 px (4:5 portrait), exported at 2160 x 2700 px.
+
+**Contents (A2):** title band, key figures, background and aim, study area with a locator map of Osun, data and method, the LGA flood-zone map (roads, schools, health facilities, markets and numbered candidate safer sites), donut chart of area by zone, candidate-site table, bar charts (facilities by zone, road exposure, terrain), ranking bars for all 30 LGAs, conclusions, recommendations, call to action with WhatsApp QR code, limitations and data credits.
+
+**How the text is made:** `lib/poster-content.ts` fills sentence templates from the computed figures. Nothing is written freehand per LGA, and zeros are printed as zeros (for example "0 schools on record"), with field mapping as the first recommendation. Wording says "susceptibility", never "risk".
+
+**How it is built:** `/api/poster-data?lga=Name` returns the analysis, the ranking and the map data (class raster clipped to the LGA, outline, roads, facilities). The browser colours the raster, builds one SVG (`lib/poster-svg.ts`) and rasterises it to JPEG (`lib/poster-client.ts`). No extra packages and no server-side rendering are needed.
+
+**Change the contact details or logo:** edit `CONTACT` in `lib/poster-svg.ts`, regenerate the QR rows in `lib/qr-whatsapp.ts` for the new link (any QR tool, 1 = dark module), and replace `public/geoestate-logo.png`.

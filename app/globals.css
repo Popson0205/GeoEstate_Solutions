@@ -306,9 +306,10 @@ button { cursor: pointer; }
 .geoai-list button { display: flex; align-items: center; gap: 7px; text-align: left; border: 0; background: #f7f9f8; border-radius: 8px; padding: 6px 8px; font-size: 11px; }
 .geoai-list button:hover { background: #eaf2ed; }
 .geoai-list span { flex: 1; font-weight: 600; } .geoai-list em { color: #84918b; font-style: normal; font-size: 10px; }
-.geoai-actions { display: flex; gap: 6px; margin-top: 12px; }
-.geoai-actions button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; height: 34px; border: 1px solid var(--geo-line); background: #fff; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.geoai-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.geoai-actions button { flex: 1 1 calc(50% - 6px); display: flex; align-items: center; justify-content: center; gap: 5px; height: 34px; border: 1px solid var(--geo-line); background: #fff; border-radius: 10px; font-size: 11px; font-weight: 700; }
 .geoai-actions button:hover { background: #f1f6f3; }
+.geoai-actions button:disabled { opacity: .55; cursor: wait; }
 .geoai-batch { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--geo-line); }
 .geoai-upload { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px dashed #9aaba2; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; }
 .geoai-upload input { display: none; }
