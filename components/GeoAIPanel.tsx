@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type React from "react";
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { Sparkles, X, FileText, Download, Upload, MapPin, Image as ImageIcon } from "lucide-react";
+import { Sparkles, X, FileText, Download, Upload, MapPin, Image as ImageIcon, ChevronDown, ChevronUp, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { buildGeoAiReportHtml } from "@/lib/geoai-report-html";
 import { makePoster, fetchPosterData, zipStore, downloadBlob, type PosterKind } from "@/lib/poster-client";
 
@@ -32,6 +33,10 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
   const [batchMsg, setBatchMsg] = useState<string | null>(null);
   const [posterMsg, setPosterMsg] = useState<string | null>(null);
   const [posterBusy, setPosterBusy] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [zip, setZip] = useState<{ i: number; n: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const cancelZip = useRef(false);
   const lgaFc = useRef<any | null>(null);
 
   /* ---- map layers owned by this panel ---- */
@@ -69,6 +74,8 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
       for (const id of ["geoai-safe-src", "geoai-pins", "geoai-lga"]) if (map.getSource(id)) map.removeSource(id);
     };
   }, [getMap, ensureLayers]);
+
+  useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, [onClose]);
 
   useEffect(() => { const m = getMap(); if (m?.getLayer("geoai-lga-fill")) m.setPaintProperty("geoai-lga-fill", "fill-opacity", choro ? 0.42 : 0); }, [choro, ranking, getMap]);
 
@@ -113,22 +120,25 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
   const savePosterZip = async () => {
     if (!ranking || posterBusy) return;
     const names: string[] = ranking.map(r => r.name); const files: { name: string; data: Uint8Array }[] = [];
-    setPosterBusy(true);
+    cancelZip.current = false; setPosterBusy(true); setZip({ i: 0, n: names.length });
     try {
       for (let i = 0; i < names.length; i++) {
-        setPosterMsg(`Poster ${i + 1} of ${names.length}: ${names[i]}…`);
+        if (cancelZip.current) { setPosterMsg("Stopped. Nothing was saved."); return; }
+        setZip({ i, n: names.length }); setPosterMsg(`Poster ${i + 1} of ${names.length}: ${names[i]}…`);
         const data = await fetchPosterData(names[i]);
         for (const kind of ["a2", "social"] as PosterKind[]) { const { blob, name } = await makePoster(names[i], kind, data); files.push({ name: `${kind === "a2" ? "A2_print" : "Social_1080x1350"}/${name}`, data: new Uint8Array(await blob.arrayBuffer()) }); }
       }
       downloadBlob(zipStore(files), "GeoEstate_Osun_LGA_Flood_Posters.zip"); setPosterMsg(`Saved ${names.length} posters (A2 and social) as a ZIP.`);
-    } catch (e: any) { setPosterMsg(e?.message || "Could not create the posters."); }
-    finally { setPosterBusy(false); }
+    } catch (e: any) { setPosterMsg(e?.message || "Could not create the posters. Try again, or make them one LGA at a time."); }
+    finally { setPosterBusy(false); setZip(null); }
   };
   const exportRanking = () => ranking && download("osun-lga-flood-exposure-ranking.csv", ["rank,lga,area_km2,high_zone_pct,moderate_zone_pct,mean_slope_deg,schools_exposed,schools_total,health_exposed,health_total,markets_exposed,markets_total,road_km_exposed,road_km_total,exposure_index",
     ...ranking.map(r => [r.rank, r.name, r.areaKm2, r.exposedPct, r.moderatePct, r.meanSlopeDeg, r.schoolsExposed, r.schoolsTotal, r.healthExposed, r.healthTotal, r.marketsExposed, r.marketsTotal, r.roadKmExposed, r.roadKmTotal, r.exposureIndex].map(csvCell).join(","))].join("\n"));
 
   async function onBatch(file: File | undefined) {
-    if (!file) return; setBatchMsg("Checking…");
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") { setBatchMsg("Please choose a .csv file with latitude and longitude columns."); return; }
+    setBatchMsg("Checking your plots…");
     try {
       const r = await fetch("/api/batch", { method: "POST", headers: { "content-type": "text/csv" }, body: await file.text() });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "Batch check failed"); }
@@ -137,88 +147,173 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
   }
 
   const f = result?.flood, a = result?.assets;
+  const isLga = result?.scope === "lga";
+  const lowPct = f ? Math.max(0, Math.round((100 - f.exposedPct - f.moderatePct) * 10) / 10) : 0;
+  const maxIdx = ranking ? Math.max(...ranking.map((r: any) => r.exposureIndex), 1) : 1;
+  const showEmpty = tab === "analysis" && !result && !error && !loading;
+  const rowKey = (e: React.KeyboardEvent, name: string) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); run(name); } };
+
   return (
-    <div className="geoai-panel" role="dialog" aria-label="GeoAI flood exposure">
+    <div className={`geoai-panel${collapsed ? " collapsed" : ""}`} role="dialog" aria-label="GeoAI flood exposure">
       <div className="geoai-head">
-        <div><div className="card-eyebrow"><Sparkles size={11} style={{ verticalAlign: -1 }}/> GeoAI</div><div className="card-title" style={{ fontSize: 16 }}>Flood exposure analysis</div></div>
-        <button className="close-btn" onClick={onClose} aria-label="Close GeoAI"><X size={15}/></button>
-      </div>
-
-      <div className="geoai-row">
-        <select value={scope} onChange={e => setScope(e.target.value)} aria-label="Area to analyse">
-          <option value={VIEW}>Current map view</option>
-          {lgas.map(n => <option key={n} value={n}>{n} LGA</option>)}
-        </select>
-        <button className="primary-btn" style={{ padding: "0 14px", height: 36 }} disabled={loading} onClick={() => run()}>{loading ? "Analysing…" : "Analyse"}</button>
-      </div>
-      <label className="geoai-check"><input type="checkbox" checked={choro} onChange={e => setChoro(e.target.checked)}/> Colour LGAs by exposure</label>
-
-      <div className="geoai-tabs">
-        <button className={tab === "analysis" ? "on" : ""} onClick={() => setTab("analysis")}>Area report</button>
-        <button className={tab === "ranking" ? "on" : ""} onClick={() => setTab("ranking")}>All LGAs ranked</button>
-      </div>
-
-      {error && <div className="geoai-error">{error}</div>}
-
-      {tab === "analysis" && !result && !error && <p className="geoai-hint">Choose an LGA (or zoom the map to an area) and press Analyse. Pins show facilities in flood-susceptible zones (red = High, amber = Moderate) and candidate sites on safer ground (green).</p>}
-
-      {tab === "analysis" && result && (
         <div>
-          <div className="geoai-title">{result.name}{result.scope === "lga" ? " LGA" : ""} <span>{result.areaKm2} km²{result.rank ? ` · exposure rank ${result.rank.position}/${result.rank.of}` : ""}</span></div>
-          <div className="geoai-kpis">
-            <div><label>High zone</label><strong>{f.exposedPct}%</strong></div>
-            <div><label>Moderate</label><strong>{f.moderatePct}%</strong></div>
-            <div><label>Mean slope</label><strong>{result.terrain.meanSlopeDeg ?? "–"}°</strong></div>
-            <div><label>Roads in High</label><strong>{result.roads.exposedKm} km</strong></div>
-          </div>
-          <table className="geoai-table"><thead><tr><th></th><th>In area</th><th>High</th><th>Mod.</th></tr></thead><tbody>
-            {([["Schools", a.schools], ["Health facilities", a.health], ["Markets", a.markets]] as [string, any][]).map(([l, x]) => <tr key={l}><td>{l}</td><td>{x.total}</td><td className={x.high ? "hot" : ""}>{x.high}</td><td>{x.moderate}</td></tr>)}
-          </tbody></table>
-
-          <div className="geoai-sub">Summary <span className="geoai-tag">{result.narrative?.source === "ai" ? "AI-written from the figures" : "Standard template"}</span></div>
-          <div className="geoai-text">{String(result.narrative?.text || "").split(/\n+/).map((l: string, i: number) => <p key={i}>{l}</p>)}</div>
-
-          {result.exposedAssets.highCount > 0 && <>
-            <div className="geoai-sub">Facilities in High zones ({result.exposedAssets.highCount})</div>
-            <div className="geoai-list">{result.exposedAssets.high.slice(0, 12).map((x: any, i: number) => (
-              <button key={i} onClick={() => fly(x.lon, x.lat)}><MapPin size={12} color="#dc2626"/><span>{x.name}</span><em>{TYPE_LABEL[x.type]}</em></button>))}</div>
-          </>}
-          {result.safeSites.length > 0 && <>
-            <div className="geoai-sub">Candidate sites on safer ground ({result.safeSites.length})</div>
-            <div className="geoai-list">{result.safeSites.map((s: any, i: number) => (
-              <button key={i} onClick={() => fly(s.lon, s.lat)}><MapPin size={12} color="#16a34a"/><span>{s.name}</span><em>{s.meanSlopeDeg}° · road {s.nearestRoadKm} km</em></button>))}</div>
-          </>}
-          <div className="geoai-actions">
-            <button onClick={openReport}><FileText size={13}/> Briefing report</button>
-            <button onClick={exportExposed}><Download size={13}/> Exposed facilities CSV</button>
-            {result.scope === "lga" && <>
-              <button onClick={() => savePoster("a2")} disabled={posterBusy}><ImageIcon size={13}/> Poster A2 (JPEG)</button>
-              <button onClick={() => savePoster("social")} disabled={posterBusy}><ImageIcon size={13}/> Social post (JPEG)</button>
-            </>}
-          </div>
-          {posterMsg && <p className="geoai-hint" style={{ marginTop: 6 }}>{posterMsg}</p>}
+          <span className="geoai-eyebrow"><Sparkles size={13}/> GeoAI</span>
+          <h2 className="geoai-h">Flood exposure analysis</h2>
         </div>
-      )}
-
-      {tab === "ranking" && (ranking ? (
-        <div>
-          <div className="geoai-scroll"><table className="geoai-table"><thead><tr><th>#</th><th>LGA</th><th>High %</th><th>Health</th><th>Roads km</th><th>Index</th></tr></thead><tbody>
-            {ranking.map(r => <tr key={r.name} className="click" onClick={() => run(r.name)}><td>{r.rank}</td><td>{r.name}</td><td>{r.exposedPct}</td><td>{r.healthExposed}/{r.healthTotal}</td><td>{r.roadKmExposed}</td><td><b>{r.exposureIndex}</b></td></tr>)}
-          </tbody></table></div>
-          <p className="geoai-hint">Index = 40% area in High zones + 40% facilities in High zones + 20% roads in High zones. Click a row to open that LGA.</p>
-          <div className="geoai-actions">
-            <button onClick={exportRanking}><Download size={13}/> Ranking CSV</button>
-            <button onClick={savePosterZip} disabled={posterBusy}><ImageIcon size={13}/> All {ranking.length} LGA posters (ZIP)</button>
-          </div>
-          {posterMsg && <p className="geoai-hint" style={{ marginTop: 6 }}>{posterMsg}</p>}
-        </div>) : <p className="geoai-hint">Loading ranking…</p>)}
-
-      <div className="geoai-batch">
-        <div className="geoai-sub" style={{ marginTop: 0 }}>Batch check a list of plots</div>
-        <p className="geoai-hint" style={{ margin: "2px 0 6px" }}>Upload a CSV with latitude and longitude columns (up to 2,000 rows). You get it back with LGA, flood class, slope and land cover added.</p>
-        <label className="geoai-upload"><Upload size={13}/> Choose CSV<input type="file" accept=".csv,text/csv" onChange={e => { onBatch(e.target.files?.[0]); e.target.value = ""; }}/></label>
-        {batchMsg && <span className="geoai-hint" style={{ marginLeft: 8 }}>{batchMsg}</span>}
+        <div className="geoai-head-actions">
+          <button className="close-btn" onClick={() => setCollapsed(c => !c)} aria-expanded={!collapsed} aria-label={collapsed ? "Expand GeoAI panel" : "Collapse GeoAI panel"}>{collapsed ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>
+          <button className="close-btn" onClick={onClose} aria-label="Close GeoAI"><X size={16}/></button>
+        </div>
       </div>
+
+      {!collapsed && <div className="geoai-body">
+        <label className="geoai-label" htmlFor="geoai-scope">Area to analyse</label>
+        <div className="geoai-row">
+          <select id="geoai-scope" value={scope} onChange={e => setScope(e.target.value)}>
+            <option value={VIEW}>Current map view</option>
+            {lgas.map(n => <option key={n} value={n}>{n} LGA</option>)}
+          </select>
+          <button className="geoai-go" disabled={loading} onClick={() => run()}>
+            {loading ? <><Loader2 size={15} className="geoai-spin"/> Analysing…</> : "Analyse"}
+          </button>
+        </div>
+
+        <label className="geoai-switch">
+          <input type="checkbox" role="switch" checked={choro} onChange={e => setChoro(e.target.checked)}/>
+          <span className="geoai-switch-track" aria-hidden="true"/>
+          <span>Shade LGAs by exposure</span>
+        </label>
+        {choro && <div className="geoai-ramp" aria-hidden="true"><span>Lower</span><i/><span>Higher exposure</span></div>}
+
+        <div className="geoai-tabs" role="tablist" aria-label="GeoAI views">
+          <button role="tab" aria-selected={tab === "analysis"} className={tab === "analysis" ? "on" : ""} onClick={() => setTab("analysis")}>Area report</button>
+          <button role="tab" aria-selected={tab === "ranking"} className={tab === "ranking" ? "on" : ""} onClick={() => setTab("ranking")}>All LGAs ranked</button>
+        </div>
+
+        {error && (
+          <div className="geoai-error" role="alert">
+            <AlertTriangle size={16}/>
+            <div><strong>The analysis didn't finish</strong><span>{error}</span></div>
+            <button onClick={() => run()}><RefreshCw size={13}/> Try again</button>
+          </div>
+        )}
+
+        {showEmpty && (
+          <div className="geoai-empty">
+            <strong>Pick an area, then press Analyse</strong>
+            <p>You'll see how much of it sits in flood-susceptible zones, which facilities are affected, and safer places to build. Pins on the map:</p>
+            <ul className="geoai-key">
+              <li><i style={{ background: "#dc2626" }}/> Facility in a High zone</li>
+              <li><i style={{ background: "#f59e0b" }}/> Facility in a Moderate zone</li>
+              <li><i style={{ background: "#16a34a" }}/> Candidate site on safer ground</li>
+            </ul>
+          </div>
+        )}
+
+        {tab === "analysis" && loading && (
+          <div className="geoai-skeletons" aria-busy="true" aria-label="Analysing">
+            <div className="sk" style={{ height: 22, width: "55%" }}/><div className="sk" style={{ height: 64 }}/><div className="sk" style={{ height: 90 }}/><div className="sk" style={{ height: 70 }}/>
+          </div>
+        )}
+
+        {tab === "analysis" && result && !loading && (
+          <div className="geoai-result">
+            <div className="geoai-title">
+              <h3>{result.name}{isLga ? " LGA" : ""}</h3>
+              <div className="geoai-meta">
+                <span>{result.areaKm2} km²</span>
+                {result.rank && <span className="geoai-badge" title="Rank 1 = highest exposure index of all 30 LGAs">Exposure rank {result.rank.position} of {result.rank.of}</span>}
+              </div>
+            </div>
+
+            <div className="geoai-kpis">
+              <div className="k-high"><label>High zone</label><strong>{f.exposedPct}%</strong></div>
+              <div className="k-mod"><label>Moderate</label><strong>{f.moderatePct}%</strong></div>
+              <div><label>Mean slope</label><strong>{result.terrain.meanSlopeDeg ?? "–"}°</strong></div>
+              <div><label>Roads in High</label><strong>{result.roads.exposedKm} km</strong></div>
+            </div>
+            <div className="geoai-zonebar" role="img" aria-label={`Area by zone: ${f.exposedPct}% High, ${f.moderatePct}% Moderate, ${lowPct}% lower`}>
+              <i style={{ width: `${f.exposedPct}%`, background: "#dc2626" }}/><i style={{ width: `${f.moderatePct}%`, background: "#f59e0b" }}/><i style={{ width: `${lowPct}%`, background: "#86c9a0" }}/>
+            </div>
+            <div className="geoai-zonelegend"><span><i style={{ background: "#dc2626" }}/>High {f.exposedPct}%</span><span><i style={{ background: "#f59e0b" }}/>Moderate {f.moderatePct}%</span><span><i style={{ background: "#86c9a0" }}/>Lower {lowPct}%</span></div>
+
+            <h4 className="geoai-sub">Facilities on record</h4>
+            <table className="geoai-table"><thead><tr><th scope="col">Type</th><th scope="col">In area</th><th scope="col">In High</th><th scope="col">In Mod.</th></tr></thead><tbody>
+              {([["Schools", a.schools], ["Health facilities", a.health], ["Markets", a.markets]] as [string, any][]).map(([l, x]) => <tr key={l}><th scope="row">{l}</th><td>{x.total}</td><td className={x.high ? "hot" : ""}>{x.high}</td><td>{x.moderate}</td></tr>)}
+            </tbody></table>
+            <p className="geoai-hint">Counts show what is on record today. A zero can mean the data is missing, not that nothing is there.</p>
+
+            <h4 className="geoai-sub">Summary <span className="geoai-tag">{result.narrative?.source === "ai" ? "AI-worded from the figures" : "Standard template"}</span></h4>
+            <div className="geoai-text">{String(result.narrative?.text || "").split(/\n+/).map((l: string, i: number) => <p key={i}>{l}</p>)}</div>
+
+            {result.exposedAssets.highCount > 0 && <>
+              <h4 className="geoai-sub">Facilities in High zones ({result.exposedAssets.highCount})</h4>
+              <div className="geoai-list">{result.exposedAssets.high.slice(0, 12).map((x: any, i: number) => (
+                <button key={i} onClick={() => fly(x.lon, x.lat)} aria-label={`Zoom to ${x.name}`}><MapPin size={13} color="#dc2626"/><span>{x.name}</span><em>{TYPE_LABEL[x.type]}</em></button>))}</div>
+              {result.exposedAssets.highCount > 12 && <p className="geoai-hint">Showing 12 of {result.exposedAssets.highCount}. The CSV has them all.</p>}
+            </>}
+            {result.safeSites.length > 0 && <>
+              <h4 className="geoai-sub">Candidate sites on safer ground ({result.safeSites.length})</h4>
+              <div className="geoai-list">{result.safeSites.map((s: any, i: number) => (
+                <button key={i} onClick={() => fly(s.lon, s.lat)} aria-label={`Zoom to ${s.name}`}><MapPin size={13} color="#16a34a"/><span>{s.name}</span><em>{s.meanSlopeDeg}° · road {s.nearestRoadKm} km</em></button>))}</div>
+            </>}
+
+            <div className="geoai-group">
+              <h4 className="geoai-sub">Report and data</h4>
+              <div className="geoai-actions">
+                <button className="primary" onClick={openReport}><FileText size={14}/> Briefing report</button>
+                <button onClick={exportExposed}><Download size={14}/> Exposed facilities CSV</button>
+              </div>
+            </div>
+            <div className="geoai-group">
+              <h4 className="geoai-sub">Print and share</h4>
+              {isLga ? (
+                <div className="geoai-actions">
+                  <button onClick={() => savePoster("a2")} disabled={posterBusy}><ImageIcon size={14}/> Poster A2 (JPEG)</button>
+                  <button onClick={() => savePoster("social")} disabled={posterBusy}><ImageIcon size={14}/> Social post (JPEG)</button>
+                </div>
+              ) : <p className="geoai-hint">Posters are made for a single LGA. Choose an LGA above and analyse it.</p>}
+              {posterMsg && <p className="geoai-status" role="status">{posterBusy && <Loader2 size={13} className="geoai-spin"/>}{posterMsg}</p>}
+            </div>
+          </div>
+        )}
+
+        {tab === "ranking" && (ranking ? (
+          <div>
+            <p className="geoai-hint" style={{ marginTop: 0 }}>Rank 1 has the highest exposure index. Select a row to open that LGA.</p>
+            <div className="geoai-scroll"><table className="geoai-table rank"><thead><tr><th scope="col">#</th><th scope="col">LGA</th><th scope="col">High %</th><th scope="col">Health</th><th scope="col">Index</th></tr></thead><tbody>
+              {ranking.map(r => (
+                <tr key={r.name} className={`click${result?.name === r.name ? " cur" : ""}`} tabIndex={0} onClick={() => run(r.name)} onKeyDown={e => rowKey(e, r.name)} aria-label={`${r.name}, rank ${r.rank}, exposure index ${r.exposureIndex}. Open this LGA`}>
+                  <td>{r.rank}</td><td>{r.name}</td><td>{r.exposedPct}</td><td>{r.healthExposed}/{r.healthTotal}</td>
+                  <td><div className="geoai-idx"><i style={{ width: `${(r.exposureIndex / maxIdx) * 100}%` }}/><b>{r.exposureIndex}</b></div></td>
+                </tr>))}
+            </tbody></table></div>
+            <p className="geoai-hint">Index = 40% area in High zones + 40% facilities in High zones + 20% roads in High zones.</p>
+            <div className="geoai-actions">
+              <button onClick={exportRanking}><Download size={14}/> Ranking CSV</button>
+              <button onClick={savePosterZip} disabled={posterBusy}><ImageIcon size={14}/> All {ranking.length} LGA posters (ZIP)</button>
+            </div>
+            {zip && (
+              <div className="geoai-progress">
+                <div className="geoai-bar" role="progressbar" aria-valuemin={0} aria-valuemax={zip.n} aria-valuenow={zip.i}><i style={{ width: `${(zip.i / zip.n) * 100}%` }}/></div>
+                <button onClick={() => { cancelZip.current = true; }}>Stop</button>
+              </div>
+            )}
+            {posterMsg && <p className="geoai-status" role="status">{posterBusy && <Loader2 size={13} className="geoai-spin"/>}{posterMsg}</p>}
+          </div>) : (error ? null : <div className="geoai-skeletons" aria-busy="true"><div className="sk" style={{ height: 36 }}/><div className="sk" style={{ height: 36 }}/><div className="sk" style={{ height: 36 }}/></div>))}
+
+        <div className="geoai-batch">
+          <h4 className="geoai-sub" style={{ marginTop: 0 }}>Check a list of plots</h4>
+          <p className="geoai-hint" style={{ margin: "2px 0 8px" }}>Upload a CSV with latitude and longitude columns (up to 2,000 rows). You get it back with LGA, flood class, slope and land cover added.</p>
+          <label className={`geoai-drop${dragOver ? " over" : ""}`}
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); onBatch(e.dataTransfer.files?.[0]); }}>
+            <Upload size={16}/><span><strong>Choose a CSV</strong> or drop it here</span>
+            <input type="file" accept=".csv,text/csv" onChange={e => { onBatch(e.target.files?.[0]); e.target.value = ""; }}/>
+          </label>
+          {batchMsg && <p className="geoai-status" role="status">{batchMsg}</p>}
+        </div>
+      </div>}
     </div>
   );
 }

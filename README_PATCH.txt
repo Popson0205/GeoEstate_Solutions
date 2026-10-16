@@ -1,6 +1,10 @@
-GeoEstate GeoAI LGA Poster - patch
-Unzip over your project folder (same relative paths). 11 files: 6 new, 5 changed.
-New:     lib/poster-kit.ts, lib/poster-content.ts, lib/poster-svg.ts, lib/poster-client.ts, lib/qr-whatsapp.ts,
-         app/api/poster-data/route.ts, public/geoestate-logo.png
-Changed: lib/geoai.ts (adds posterMap), components/GeoAIPanel.tsx (poster buttons), app/globals.css (button wrap), GEOAI.md (docs)
-No new npm packages. Then: npm run dev, open GeoAI, analyse an LGA, click "Poster A2 (JPEG)".
+GeoEstate GeoAI LGA Poster - patch (UI redesign of the GeoAI panel)
+Unzip over your project folder (same relative paths). No new npm packages.
+
+Changed in this drop (on top of the poster patch):
+  components/GeoAIPanel.tsx  Redesigned panel: clearer layout, loading/empty/error states, rank badge,
+                             zone bar, grouped actions, ZIP progress with Stop, drag-and-drop CSV, keyboard + screen-reader support.
+  app/globals.css            Only the "GeoAI panel" block was replaced (everything above it is untouched).
+Unchanged: lib/*, app/api/*, public/*, GEOAI.md. All figures and poster output are exactly as before.
+
+Then: npm run dev, open GeoAI, analyse an LGA, click "Poster A2 (JPEG)".
