@@ -8,7 +8,8 @@ import {
   Crosshair, Menu, ChevronRight
 } from "lucide-react";
 import type { LandCheckResult } from "@/lib/demo";
-import { buildReportHtml } from "@/lib/report";
+import Account from "@/components/Account";
+import { api, allowanceText, licenceNotice, signInUrl, useMe, type ApiError } from "@/lib/client/api";
 import GeoAIPanel from "@/components/GeoAIPanel";
 import { iconDataUri, loadMapIcons, LAYER_GROUPS, HIT_GROUPS, buildPopupHtml, ROAD_COLORS, FLOOD_COLOR } from "@/lib/mapSymbols";
 
@@ -175,6 +176,10 @@ const LEGEND: { title: string; items: [string, React.ReactNode][] }[] = [
 ];
 
 export default function GeoEstateApp() {
+  const account = useMe();
+  const { me, usage } = account;
+  const [buying, setBuying] = useState(false);
+  const [reference, setReference] = useState("");
   const mapNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [selected, setSelected] = useState<LandCheckResult | null>(null);
@@ -297,6 +302,14 @@ export default function GeoEstateApp() {
       }
     });
 
+    // /?lat=…&lng=… (from a report, or back from signing in): go there and preview it
+    const q = new URLSearchParams(window.location.search);
+    const qLat = Number(q.get("lat")), qLng = Number(q.get("lng"));
+    if (q.get("lat") && Number.isFinite(qLat) && Number.isFinite(qLng)) {
+      map.jumpTo({ center: [qLng, qLat], zoom: 16 });
+      fetch(`/api/landcheck?lat=${qLat}&lng=${qLng}`).then(async r => { const b = await r.json().catch(() => ({})); if (r.ok) setSelected(b); });
+    }
+
     mapRef.current = map;
     return () => {
       map.remove();
@@ -319,13 +332,18 @@ export default function GeoEstateApp() {
     }
   }
 
-  function generateReport() {
+  // Buy the full report on the selected location: counted against the organization's monthly allowance.
+  async function buyReport() {
     if (!selected) return;
-    // Open the tab synchronously inside the click so popup blockers allow it.
-    const w = window.open("", "_blank");
-    if (!w) { setNotice("Your browser blocked the report window. Allow pop-ups for this site and try again."); return; }
-    w.document.open(); w.document.write(buildReportHtml(selected)); w.document.close();
+    setBuying(true);
+    try {
+      const r = await api<{ id: string }>("/api/reports", { method: "POST", body: JSON.stringify({ lat: selected.lat, lng: selected.lng, title: reference }) });
+      window.location.assign(`/reports/${r.id}`);
+    } catch (e) {
+      setNotice((e as ApiError).message); setBuying(false); void account.reload();
+    }
   }
+  const here = selected ? `/?lat=${selected.lat.toFixed(6)}&lng=${selected.lng.toFixed(6)}` : "/";
 
   // Live place search: debounced, cancels stale requests, shows suggestions as you type.
   useEffect(() => {
@@ -382,7 +400,7 @@ export default function GeoEstateApp() {
           <div className="brand-mark"><MapPin size={18}/></div>
           <div className="brand-copy">
             <div className="brand-name">GEOESTATE</div>
-            <div className="brand-sub">LANDCHECK • OSOGBO PILOT</div>
+            <div className="brand-sub">LANDCHECK</div>
           </div>
         </div>
 
@@ -431,14 +449,16 @@ export default function GeoEstateApp() {
           <button className="icon-btn" title="Check current map location" onClick={checkCurrentLocation}>
             <Crosshair size={17}/>
           </button>
-          <button className="icon-btn" title="GeoAI flood exposure analysis" onClick={() => setGeoaiOpen(v => !v)} style={geoaiOpen ? { background: "#0b5d3b", color: "#fff", borderColor: "#0b5d3b" } : undefined}>
+          <button className="icon-btn" title="GeoAI flood exposure analysis" onClick={() => (me ? setGeoaiOpen(v => !v) : setNotice("Sign in with your organization's Geohub account to use GeoAI area analysis."))} style={geoaiOpen ? { background: "#0b5d3b", color: "#fff", borderColor: "#0b5d3b" } : undefined}>
             <Sparkles size={17}/>
           </button>
           <button className="icon-btn" title="Layers" onClick={() => setMenuOpen(v => !v)}>
             <Layers3 size={17}/>
           </button>
+          <Account me={me} usage={usage} loading={account.loading} />
         </div>
       </header>
+      {licenceNotice(me) && <div className={`notice notice-${licenceNotice(me)!.tone}`} role="status">{licenceNotice(me)!.text}</div>}
 
       <section className="workspace">
         <aside className="sidebar">
@@ -522,7 +542,7 @@ export default function GeoEstateApp() {
 
           {geoaiOpen && <GeoAIPanel getMap={getMap} onClose={() => setGeoaiOpen(false)} notify={setNotice} />}
           <div className="map-overlay">
-            <div className="map-chip green">OSOGBO • PILOT</div>
+            <div className="map-chip green">DETAILED DATA • OSUN STATE</div>
             <div className="map-chip">Click map to LandCheck</div>
           </div>
 
@@ -565,19 +585,24 @@ export default function GeoEstateApp() {
                 <div className="metric"><label>Environment</label><strong>{selected.environment}/100</strong></div>
               </div>
 
-              <div className="metric-grid" style={{ marginTop: 7 }}>
-                <div className="metric"><label>Nearest road</label><strong>{selected.nearestRoad}</strong></div>
-                <div className="metric"><label>Nearest school</label><strong>{selected.nearestSchool}</strong></div>
-                <div className="metric"><label>Elevation</label><strong>{selected.elevation}</strong></div>
-                <div className="metric"><label>Slope</label><strong>{selected.slope}</strong></div>
-                <div className="metric"><label>Flood susceptibility</label><strong>{selected.flood ?? "Not available"}</strong></div>
-                <div className="metric"><label>Land cover</label><strong>{selected.landCover}</strong></div>
-                <div className="metric"><label>Schools within 2 km</label><strong>{selected.educationCount ?? "n/a"}</strong></div>
-              </div>
-
-              <div className="card-actions">
-                <button className="btn-solid" onClick={generateReport}><FileText size={14} style={{ verticalAlign: "middle", marginRight: 6 }}/>Generate report</button>
-                <button className="btn-outline" onClick={() => setSelected(null)}>Close</button>
+              <div className="locked">
+                <strong>The full report</strong>
+                <span>What a buyer, bank or lawyer needs before committing to this land:</span>
+                <ul>
+                  <li>Distances to roads, schools and health facilities</li>
+                  <li>Flood susceptibility, slope, elevation and land cover</li>
+                  <li>Education facilities within 2 km</li>
+                  <li>A numbered report anyone can verify, to print or save as PDF</li>
+                </ul>
+                {!me ? <a className="btn-solid btn-link" href={signInUrl(here)}>Sign in to buy the report</a>
+                  : !me.can_buy ? <span className="muted">{me.can_write ? "Ask an admin or member of your organization to buy reports." : "Your organization's LandCheck subscription has ended: renew it to buy reports."}</span>
+                  : <>
+                    <label className="sr-only" htmlFor="lc-ref">Your reference (optional)</label>
+                    <input id="lc-ref" value={reference} maxLength={200} onChange={e => setReference(e.target.value)} placeholder="Your reference, e.g. Plot 12 for Mr Ade (optional)" />
+                    <button className="btn-solid" disabled={buying || usage?.left === 0} onClick={buyReport}>
+                      <FileText size={14} style={{ verticalAlign: "middle", marginRight: 6 }}/>{buying ? "Preparing the report…" : "Get the full report"}</button>
+                    <div className="muted small" style={{ marginTop: 6, textAlign: "center" }}>{usage?.left === 0 ? "This month's allowance is used up." : allowanceText(usage)}</div>
+                  </>}
               </div>
             </div>
           )}

@@ -3,6 +3,8 @@ import { floodAt } from "@/lib/flood";
 import { slopeAt } from "@/lib/slope";
 import { landCoverAt } from "@/lib/landcover";
 import { placeAt } from "@/lib/osm";
+import { recordBatch } from "@/lib/server/reports";
+import { need, withSession } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
 const MAX_ROWS = 2000;
@@ -24,7 +26,17 @@ function parseCsv(text: string): string[][] {
 const esc = (v: unknown) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 
 // POST text/csv with latitude/longitude columns -> same CSV plus flood, slope, land-cover and LGA columns.
-export async function POST(request: NextRequest) {
+// Batch checks are part of LandCheck Advanced (the `batch` feature).
+export function POST(request: NextRequest) {
+  return withSession(request, async (me, s) => {
+    const stop = need(me, s, { buy: true, feature: "batch" }); if (stop) return stop;
+    const res = await run(request);
+    if (res.status === 200) await recordBatch(me!, Number(res.headers.get("x-rows") || 0)).catch((e) => console.error("batch record", e));
+    return res;
+  });
+}
+
+async function run(request: NextRequest) {
   const text = await request.text();
   const rows = parseCsv(text.replace(/^\uFEFF/, ""));
   if (rows.length < 2) return NextResponse.json({ error: "CSV needs a header row and at least one data row." }, { status: 400 });
@@ -42,5 +54,5 @@ export async function POST(request: NextRequest) {
     out.push([...base, place?.split(",")[0] ?? "", f?.cls ?? "", f?.score ?? "", f ? Math.round(f.handM * 10) / 10 : "", s ? Math.round(s.mean * 10) / 10 : "", s?.band ?? "", landCoverAt(lat, lng) ?? "",
       f ? "" : "outside Osun data coverage"].map(esc).join(","));
   }
-  return new NextResponse(out.join("\n"), { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="geoestate-batch-results.csv"' } });
+  return new NextResponse(out.join("\n"), { headers: { "x-rows": String(rows.length - 1), "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="geoestate-batch-results.csv"' } });
 }

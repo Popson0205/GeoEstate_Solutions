@@ -1,6 +1,35 @@
-# GeoEstate LandCheck MVP — Osogbo
+# GeoEstate LandCheck
 
-GeoEstate LandCheck is the first pilot of the GeoEstate spatial intelligence platform.
+Location and due-diligence reports on land in Nigeria: part of the GeoEstate platform, beside Geohub, Land Registry and
+FarmScan. Detailed data covers Osun State today.
+
+## How it is sold (v0.20)
+
+- **Anyone** can explore the map and click a location for a free preview: the place, its overall score and the four parts
+  (accessibility, infrastructure, development, environment).
+- **Organizations with LandCheck** (licensed in Geohub, invoiced from the CRM) buy the **full report**: distances to
+  roads, schools and health facilities, flood susceptibility, slope, elevation, land cover and nearby education. Each one
+  is counted against the month's allowance (the licence's `reports_per_month`: Standard 50, Advanced 300), numbered per
+  organization (`LC-2026-000123`), kept exactly as issued under **Reports**, printable, and carries a QR code and a code
+  anyone can check at `/verify/<code>` to confirm it is genuine.
+- **Sign-in** is with the person's Geohub account (GeoEstate ID): no LandCheck accounts. Owners, admins and members buy
+  reports; collectors and viewers read the organization's reports. An expired licence is read-only; a suspended one is
+  closed.
+- **LandCheck Advanced** adds batch checks (CSV of locations) and the AI-written GeoAI briefing; GeoAI area analysis is
+  for signed-in organizations.
+
+### Setting it up
+
+1. In Geohub's variables: add LandCheck to `ID_CLIENTS`
+   (`{"id":"check","name":"LandCheck","redirect_uris":["https://<landcheck>/api/auth/callback"],"secret":"<a long random secret>"}`)
+   and `check=https://<landcheck>` to `PRODUCT_URLS`.
+2. In LandCheck's variables: `DATABASE_URL` (Geohub's database), `APP_URL`, `GEOHUB_URL`, `GEOHUB_API`, `ID_CLIENT=check`,
+   `ID_SECRET` (the same secret). The `insight` schema is created on the first request.
+3. Give an organization LandCheck in Geohub's staff console (Products), or from a paid CRM invoice.
+
+Tests: `npm test` (needs PostgreSQL; `DATABASE_URL` defaults to `postgresql://hub:hub@localhost:5432/check_test`).
+
+## Earlier notes
 
 ## Current provider-backed layers
 

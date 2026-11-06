@@ -187,6 +187,7 @@ button { cursor: pointer; }
   box-shadow: var(--geo-shadow);
   padding: 17px;
   animation: rise .22s ease-out;
+  max-height: calc(100% - 36px); overflow-y: auto;
 }
 @keyframes rise { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
 
@@ -393,3 +394,62 @@ button { cursor: pointer; }
 }
 @media (prefers-reduced-motion: reduce) { .geoai-spin, .sk { animation: none; } .geoai-bar i, .geoai-switch-track, .geoai-switch-track::after { transition: none; } }
 
+
+/* ---------- accounts, reports and the GeoEstate platform ---------- */
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.acct-slot { width: 120px; }
+.acct-signin { display:inline-flex; align-items:center; height:38px; padding:0 16px; border-radius:10px; background:var(--geo-green); color:#fff; font-weight:700; text-decoration:none; font-size:13px; white-space:nowrap; }
+.acct { position:relative; }
+.acct-btn { display:flex; align-items:center; gap:8px; border:1px solid var(--geo-line); background:#fff; border-radius:12px; padding:4px 10px 4px 4px; max-width:240px; }
+.acct-avatar { width:30px; height:30px; border-radius:9px; background:#1b2b5e; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; flex:none; }
+.acct-name { display:flex; flex-direction:column; text-align:left; font-size:12px; font-weight:700; line-height:1.2; min-width:0; }
+.acct-name small { font-weight:500; color:var(--geo-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.acct-pop { position:absolute; right:0; top:calc(100% + 8px); width:290px; background:#fff; border:1px solid var(--geo-line); border-radius:14px; box-shadow:var(--geo-shadow); padding:6px; z-index:50; }
+.acct-head { padding:10px 10px 8px; border-bottom:1px solid var(--geo-line); margin-bottom:4px; display:flex; flex-direction:column; gap:2px; font-size:12px; color:var(--geo-muted); }
+.acct-head strong { color:var(--geo-ink); font-size:14px; }
+.acct-usage { color:var(--geo-green); font-weight:700; }
+.acct-sub { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--geo-muted); padding:8px 10px 2px; }
+.acct-item { display:flex; flex-direction:column; width:100%; text-align:left; padding:8px 10px; border-radius:9px; border:0; background:transparent; text-decoration:none; color:var(--geo-ink); font-size:13px; }
+.acct-item span { font-size:11px; color:var(--geo-muted); }
+.acct-item:hover { background:var(--geo-soft); }
+.acct-item.is-off { opacity:.55; }
+.acct-out { color:var(--geo-danger); font-weight:600; }
+.notice { padding:10px 20px; font-size:13px; }
+.notice-info { background:#eef3ff; color:#1b2b5e; } .notice-warn { background:#fff7e6; color:#8a5a00; } .notice-bad { background:#fdecec; color:#9b1c1c; }
+.page { min-height:100vh; background:#f3f6f4; }
+.page-nav { display:flex; gap:6px; margin-right:auto; margin-left:24px; }
+.page-nav a { padding:8px 12px; border-radius:9px; color:var(--geo-muted); font-weight:600; text-decoration:none; font-size:14px; }
+.page-nav a:hover { background:var(--geo-soft); color:var(--geo-ink); }
+.page-main { max-width:1080px; margin:0 auto; padding:24px 20px 60px; }
+.page-title { font-size:24px; margin:0 0 6px; }
+.page-search { display:flex; gap:8px; margin:14px 0; }
+.page-search input { flex:1; height:42px; padding:0 12px; border:1px solid #cdd8d2; border-radius:10px; background:#fff; min-width:0; }
+.page-search .btn-solid { padding:0 18px; border-radius:10px; font-weight:700; }
+.page-actions { display:flex; gap:14px; align-items:center; justify-content:flex-end; margin-bottom:12px; flex-wrap:wrap; }
+.page-actions a { color:var(--geo-green); font-weight:600; }
+.page-actions .btn-solid { height:40px; padding:0 16px; border-radius:10px; font-weight:700; }
+.report-frame { width:100%; height:calc(100vh - 190px); min-height:600px; border:1px solid var(--geo-line); border-radius:14px; background:#fff; }
+.table-wrap { overflow-x:auto; background:#fff; border:1px solid var(--geo-line); border-radius:14px; }
+.tbl { width:100%; border-collapse:collapse; font-size:14px; }
+.tbl th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--geo-muted); padding:12px 14px; border-bottom:1px solid var(--geo-line); }
+.tbl td { padding:12px 14px; border-bottom:1px solid var(--geo-line); vertical-align:top; }
+.tbl tr:last-child td { border-bottom:0; } .tbl tr.is-link { cursor:pointer; } .tbl tr.is-link:hover td { background:var(--geo-soft); }
+.tbl .n, .n { text-align:right; }
+.mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:700; color:#1b2b5e; }
+.muted { color:var(--geo-muted); } .small { font-size:12px; } .empty { padding:30px; text-align:center; color:var(--geo-muted); background:#fff; border-radius:14px; border:1px solid var(--geo-line); }
+.error { color:var(--geo-danger); }
+.card { background:#fff; border:1px solid var(--geo-line); border-radius:16px; padding:22px; }
+.btn-link { display:inline-flex; align-items:center; height:40px; padding:0 16px; border-radius:10px; text-decoration:none; font-weight:700; }
+.verify { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:#f3f6f4; }
+.verify .card { max-width:480px; width:100%; text-align:center; }
+.verify h1 { font-size:20px; margin:10px 0; }
+.facts { display:grid; grid-template-columns:max-content 1fr; gap:6px 14px; text-align:left; margin:16px 0; font-size:14px; }
+.facts dt { color:var(--geo-muted); } .facts dd { margin:0; font-weight:600; }
+.ok-line { color:#166534; background:#ecfdf3; padding:10px; border-radius:10px; font-weight:700; }
+.bad-line { color:#9b1c1c; background:#fdecec; padding:10px; border-radius:10px; }
+.locked { margin-top:10px; padding:12px; border:1px dashed #b8c6be; border-radius:12px; background:var(--geo-soft); font-size:12px; }
+.locked strong { display:block; font-size:13px; margin-bottom:2px; }
+.locked ul { margin:6px 0 10px; padding-left:18px; color:var(--geo-muted); }
+.locked input { width:100%; height:36px; border:1px solid #cdd8d2; border-radius:9px; padding:0 10px; margin-bottom:8px; background:#fff; }
+.locked .btn-solid, .locked .btn-link { width:100%; height:40px; border-radius:10px; font-weight:800; justify-content:center; }
+@media (max-width: 720px) { .acct-name { display:none; } .acct-btn { padding:4px; } .page-nav { margin-left:8px; } .report-frame { height:70vh; } }

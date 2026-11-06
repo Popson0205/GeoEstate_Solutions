@@ -1,11 +1,19 @@
 import type { LandCheckResult } from "@/lib/demo";
+import { qrSvg } from "@/lib/qr";
+
+/** What makes a report an issued one: its number, who bought it, and where anyone can check it. */
+export type ReportMeta = { number: string; orgName: string; title?: string; issuedAt: string; issuedBy: string; verifyUrl: string; verifyCode: string };
 
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 const band = (n: number) => (n >= 75 ? "Strong" : n >= 50 ? "Moderate" : "Limited");
 
 // Builds a self-contained, printable HTML report (use the Print / Save as PDF button inside it).
-export function buildReportHtml(r: LandCheckResult): string {
-  const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+export function buildReportHtml(r: LandCheckResult & { floodDetail?: any; nearestHospital?: string }, meta?: ReportMeta): string {
+  const date = new Date(meta?.issuedAt ?? Date.now()).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const qr = meta ? `<svg class="qr" viewBox="0 0 120 120" width="96" height="96" role="img" aria-label="QR code to verify this report">${qrSvg(meta.verifyUrl, 0, 0, 120, "#1b2b5e")}</svg>` : "";
+  const issued = meta ? `<div class="issued"><div><div class="no">${esc(meta.number)}</div>${meta.title ? `<div><b>${esc(meta.title)}</b></div>` : ""}
+<div class="sub">Issued to ${esc(meta.orgName)} by ${esc(meta.issuedBy)}, ${date}</div>
+<div class="sub">Check it is genuine: <a href="${esc(meta.verifyUrl)}">${esc(meta.verifyUrl.replace(/^https?:\/\//, ""))}</a> (code <b>${esc(meta.verifyCode)}</b>)</div></div>${qr}</div>` : "";
   const edu = r.educationNearby ?? [];
   const eduRows = edu.length
     ? edu.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.kind)}</td><td class="n">${e.d} m</td></tr>`).join("")
@@ -21,14 +29,15 @@ h1{font-size:22px;margin:0}h2{font-size:15px;margin:22px 0 8px;color:#0b5d3b;bor
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.m{border:1px solid #d7e2db;border-radius:8px;padding:8px}
 .m span{display:block;font-size:11px;color:#5b6b62}.m strong{font-size:18px}.m em{display:block;font-size:11px;color:#0b5d3b;font-style:normal}
 table{width:100%;border-collapse:collapse}td{padding:6px 8px;border-bottom:1px solid #edf2ee;vertical-align:top}td:first-child{width:38%;color:#5b6b62}
-.n{text-align:right;white-space:nowrap}.note{font-size:12px;color:#5b6b62;margin-top:22px}
+.n{text-align:right;white-space:nowrap}.issued{display:flex;justify-content:space-between;gap:16px;align-items:center;border:1px solid #d7e2db;border-radius:10px;padding:12px 14px;margin:14px 0}
+.no{font:700 18px ui-monospace,Menlo,Consolas,monospace;color:#1b2b5e}.qr{flex:none}.issued a{color:#1b2b5e}.note{font-size:12px;color:#5b6b62;margin-top:22px}
 button{margin:0 0 14px;padding:8px 14px;border:0;border-radius:8px;background:#0b5d3b;color:#fff;font-weight:600;cursor:pointer}
 @media print{button{display:none}body{margin:0}}
 </style></head><body>
 <button onclick="window.print()">Print / Save as PDF</button>
 <div class="eye">GEOESTATE LANDCHECK REPORT</div>
 <h1>${esc(r.place)}</h1>
-<div class="sub">${r.lat.toFixed(5)}, ${r.lng.toFixed(5)} &middot; Generated ${date}</div>
+<div class="sub">${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}${meta ? "" : ` &middot; Generated ${date}`}</div>${issued}
 <div class="score"><b>${r.score}</b><div><strong>Spatial context score (${band(r.score)})</strong><br><span class="sub">Based on road access, nearby services, development intensity and environment.</span></div></div>
 <div class="grid">${metric("Accessibility", r.accessibility)}${metric("Infrastructure", r.infrastructure)}${metric("Development", r.development)}${metric("Environment", r.environment)}</div>
 <h2>Site context</h2>

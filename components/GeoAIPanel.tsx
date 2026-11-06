@@ -140,7 +140,7 @@ export default function GeoAIPanel({ getMap, onClose, notify }: Props) {
     if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") { setBatchMsg("Please choose a .csv file with latitude and longitude columns."); return; }
     setBatchMsg("Checking your plots…");
     try {
-      const r = await fetch("/api/batch", { method: "POST", headers: { "content-type": "text/csv" }, body: await file.text() });
+      const r = await fetch("/api/batch", { method: "POST", headers: { "content-type": "text/csv", "x-geoestate": "1" }, body: await file.text() });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "Batch check failed"); }
       download(file.name.replace(/\.csv$/i, "") + "-geoestate.csv", await r.text()); setBatchMsg("Done. Results downloaded.");
     } catch (e) { setBatchMsg((e as Error).message); }
