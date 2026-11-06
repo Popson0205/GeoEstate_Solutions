@@ -34,7 +34,7 @@ export default function Account({ me, usage, loading }: { me: Me | null; usage: 
           <a role="menuitem" className="acct-item" href="/reports">Your organization's reports</a>
           {apps.filter((a) => !a.current).length > 0 && <div className="acct-sub">GeoEstate apps</div>}
           {apps.filter((a) => !a.current).map((a) => a.url
-            ? <a key={a.product} role="menuitem" className="acct-item" href={a.url}><strong>{a.name}</strong><span>{WHAT[a.product] ?? ""}</span></a>
+            ? <a key={a.product} role="menuitem" className="acct-item" href={a.url} target="_blank" rel="noopener"><strong>{a.name}</strong><span>{WHAT[a.product] ?? ""}</span></a>
             : <div key={a.product} className="acct-item is-off"><strong>{a.name}</strong><span>{WHAT[a.product] ?? ""}</span></div>)}
           <button type="button" role="menuitem" className="acct-item acct-out" onClick={signOut}>Sign out</button>
         </div>
