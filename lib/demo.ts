@@ -20,6 +20,7 @@ export type LandCheckResult = {
   educationCount?: number | null;
   educationNearby?: { name: string; kind: string; d: number }[];
   source?: string;
+  titleStatus?: import("./server/title").TitleStatus;      // LandCheck Advanced: from GeoEstate Land Registry, as at the report
 };
 
 export function demoLandCheck(lat: number, lng: number): LandCheckResult {
