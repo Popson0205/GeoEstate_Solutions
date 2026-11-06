@@ -8,5 +8,8 @@ export const config = {
   idClient: () => env("ID_CLIENT", "check"),
   idSecret: () => env("ID_SECRET"),
   databaseUrl: () => env("DATABASE_URL"),
+  // Land Registry's API, for title status (Advanced): its PLATFORM_KEY is set here as LAND_PLATFORM_KEY
+  landApi: () => env("LAND_API").replace(/\/$/, ""),
+  landPlatformKey: () => env("LAND_PLATFORM_KEY"),
   cookieSecure: () => env("APP_URL", "").startsWith("https://"),
 };

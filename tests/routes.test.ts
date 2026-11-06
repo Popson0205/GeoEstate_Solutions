@@ -15,6 +15,7 @@ import * as one from "@/app/api/reports/[id]/route";
 import * as reports from "@/app/api/reports/route";
 import * as verify from "@/app/api/verify/[code]/route";
 import { middleware } from "@/middleware";
+import { buildReportHtml } from "@/lib/report";
 import { resetDb } from "@/lib/server/db";
 import { setGid } from "@/lib/server/session";
 import { fakeGeohub } from "./fake-geohub";
@@ -124,6 +125,50 @@ describe("plan features and safety", () => {
     const out = (await adv.text()).split("\n");
     expect(out[0]).toContain("flood_class");
     expect(out[2]).toContain("invalid coordinates");
+  });
+
+  it("Advanced reports carry the title status from Land Registry, as issued", async () => {
+    const real = globalThis.fetch;
+    const asked: { url: string; key: string | null }[] = [];
+    let landUp = true;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.startsWith("http://land.test/")) return real(input as any, init);
+      asked.push({ url, key: new Headers(init?.headers).get("x-platform-key") });
+      if (!landUp) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify({ checked_at: "2026-11-06T10:00:00Z", registries_searched: 2, near_within_m: 50, near: [],
+        at: [{ registry: "Osun Lands Bureau", pin: "OLB-000042", status: "active", area_sqm: 648.2, land_use: "Residential", locality: "Oke-Fia",
+          title: { title_no: "OS/CO/0042", kind: "Statutory right of occupancy", starts_on: "2024-03-01", ends_on: null },
+          encumbrances: [{ kind: "mortgage", count: 1 }], dealings_pending: 1, holders: null, lookup_url: "https://land.test/lookup/olb?q=OLB-000042" }] }),
+        { headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    process.env.LAND_API = "http://land.test/api"; process.env.LAND_PLATFORM_KEY = "platform-key";
+    try {
+      const org = "55555555-5555-4555-8555-555555555555";
+      // Standard: no title status, Land Registry not asked
+      const std = await (await reports.POST(req("/api/reports", { method: "POST", body: OSOGBO, cookies: await as({ org }) }))).json();
+      expect(std.result.titleStatus).toBeUndefined();
+      expect(asked.length).toBe(0);
+      const adv = await as({ org, features: ["reports", "batch", "title_status"] });
+      const r = await (await reports.POST(req("/api/reports", { method: "POST", body: OSOGBO, cookies: adv }))).json();
+      expect(asked[0]).toEqual({ url: `http://land.test/api/platform/title-status?lat=${OSOGBO.lat}&lng=${OSOGBO.lng}`, key: "platform-key" });
+      expect(r.result.titleStatus).toMatchObject({ ok: true, registries_searched: 2, at: [{ pin: "OLB-000042" }] });
+      const html = buildReportHtml(r.result);
+      expect(html).toContain("OS/CO/0042");
+      expect(html).toContain("Mortgage");
+      expect(html).toContain("lodged and not yet decided");
+      expect(html).toContain("Not published by this registry");
+      expect(html).toContain("not proof of title");
+      // Land Registry down: the report is still issued, saying so
+      landUp = false;
+      const down = await reports.POST(req("/api/reports", { method: "POST", body: OSOGBO, cookies: adv }));
+      expect(down.status).toBe(201);
+      const d = await down.json();
+      expect(d.result.titleStatus).toMatchObject({ ok: false });
+      expect(buildReportHtml(d.result)).toContain("could not be reached");
+    } finally {
+      globalThis.fetch = real; delete process.env.LAND_API; delete process.env.LAND_PLATFORM_KEY;
+    }
   });
 
   it("refuses changes that do not come from LandCheck's own pages", () => {

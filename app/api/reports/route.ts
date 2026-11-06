@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyseLocation } from "@/lib/analysis";
 import { ReportError, buy, list } from "@/lib/server/reports";
-import { need, problem, withSession } from "@/lib/server/session";
+import { has, need, problem, withSession } from "@/lib/server/session";
+import { titleConfigured, titleStatus } from "@/lib/server/title";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -23,10 +24,11 @@ export function POST(req: NextRequest) {
     const lat = Number(b.lat), lng = Number(b.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
       return problem(422, "Give the location as lat and lng.", "validation");
-    const a = await analyseLocation(lat, lng);
+    const withTitle = has(me!, "title_status") && titleConfigured();      // LandCheck Advanced, when Land Registry is connected
+    const [a, title] = await Promise.all([analyseLocation(lat, lng), withTitle ? titleStatus(lat, lng) : Promise.resolve(undefined)]);
     if (!a.ok) return problem(a.status, String(a.body.error), "provider_unavailable");        // nothing is counted
     try {
-      const r = await buy(me!, lat, lng, String(b.title ?? ""), a.result);
+      const r = await buy(me!, lat, lng, String(b.title ?? ""), title ? { ...a.result, titleStatus: title } : a.result);
       return NextResponse.json(r, { status: 201 });
     } catch (e) {
       if (e instanceof ReportError) return problem(e.status, e.message, e.code, e.extra);

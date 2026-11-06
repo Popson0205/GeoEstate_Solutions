@@ -5,6 +5,31 @@ import { qrSvg } from "@/lib/qr";
 export type ReportMeta = { number: string; orgName: string; title?: string; issuedAt: string; issuedBy: string; verifyUrl: string; verifyCode: string };
 
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+const day = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "";
+const cap = (k: string) => k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " ");
+
+/** The land register section (LandCheck Advanced): what GeoEstate Land Registry's published registries hold here. */
+function landRegister(t: NonNullable<LandCheckResult["titleStatus"]>): string {
+  const when = new Date(t.checked_at).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" });
+  if (!t.ok) return `<h2>Land register</h2><p>${esc(t.reason)} The title status is not part of this report.</p>`;
+  const parcel = (p: (typeof t.at)[number]) => {
+    const enc = p.encumbrances.length ? p.encumbrances.map(e => `${cap(e.kind)}${e.count > 1 ? ` (${e.count})` : ""}`).join(", ") : "None registered";
+    const title = p.title ? `${esc(p.title.kind)} ${esc(p.title.title_no)}${p.title.starts_on ? `, from ${esc(day(p.title.starts_on))}` : ""}${p.title.ends_on ? ` to ${esc(day(p.title.ends_on))}` : ""}`
+      : "Registered parcel, no title registered";
+    const rows: [string, string][] = [["Registry", esc(p.registry)], ["Parcel (PIN)", `<b>${esc(p.pin)}</b>`], ["Title", title],
+      ["Encumbrances", esc(enc)], ["Dealings waiting", p.dealings_pending ? `<b>${p.dealings_pending}</b> lodged and not yet decided` : "None"],
+      ["Holders", p.holders ? esc(p.holders.map(h => `${h.name}${h.share && h.share !== "1/1" ? ` (${h.share})` : ""}`).join(", ") || "None recorded") : "Not published by this registry"],
+      ["Area, use", `${Math.round(p.area_sqm).toLocaleString("en-NG")} m²${p.land_use ? `, ${esc(p.land_use)}` : ""}${p.locality ? `, ${esc(p.locality)}` : ""}`]];
+    if (p.lookup_url) rows.push(["Check it now", `<a href="${esc(p.lookup_url)}">${esc(p.lookup_url.replace(/^https?:\/\//, ""))}</a>`]);
+    return `<table class="reg">${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}</table>`;
+  };
+  const at = t.at.length ? t.at.map(parcel).join("")
+    : `<p><b>No registered parcel at this point</b> in the ${t.registries_searched} GeoEstate land ${t.registries_searched === 1 ? "registry" : "registries"} that publish a lookup.</p>`;
+  const near = t.near.length ? `<p class="sub" style="margin-top:10px">Registered parcels within ${t.near_within_m} m: ${t.near.map(n => `${esc(n.pin)} (${esc(n.registry)}, ${n.distance_m} m${n.title ? ", titled" : ""}${n.encumbrances.length ? ", encumbered" : ""})`).join("; ")}.</p>` : "";
+  return `<h2>Land register</h2>${at}${near}
+<p class="note" style="margin-top:8px">From GeoEstate Land Registry as at ${esc(when)} (Lagos time). Only registries on GeoEstate that publish a public lookup are searched (${t.registries_searched}); state and other land registries are not. An entry here is not proof of title: search the registry itself before any transaction.</p>`;
+}
+
 const band = (n: number) => (n >= 75 ? "Strong" : n >= 50 ? "Moderate" : "Limited");
 
 // Builds a self-contained, printable HTML report (use the Print / Save as PDF button inside it).
@@ -30,6 +55,7 @@ h1{font-size:22px;margin:0}h2{font-size:15px;margin:22px 0 8px;color:#0b5d3b;bor
 .m span{display:block;font-size:11px;color:#5b6b62}.m strong{font-size:18px}.m em{display:block;font-size:11px;color:#0b5d3b;font-style:normal}
 table{width:100%;border-collapse:collapse}td{padding:6px 8px;border-bottom:1px solid #edf2ee;vertical-align:top}td:first-child{width:38%;color:#5b6b62}
 .n{text-align:right;white-space:nowrap}.issued{display:flex;justify-content:space-between;gap:16px;align-items:center;border:1px solid #d7e2db;border-radius:10px;padding:12px 14px;margin:14px 0}
+.reg{margin-bottom:10px;border:1px solid #d7e2db;border-radius:8px}.reg td:first-child{width:30%}.reg a{color:#1b2b5e}
 .no{font:700 18px ui-monospace,Menlo,Consolas,monospace;color:#1b2b5e}.qr{flex:none}.issued a{color:#1b2b5e}.note{font-size:12px;color:#5b6b62;margin-top:22px}
 button{margin:0 0 14px;padding:8px 14px;border:0;border-radius:8px;background:#0b5d3b;color:#fff;font-weight:600;cursor:pointer}
 @media print{button{display:none}body{margin:0}}
@@ -42,8 +68,9 @@ button{margin:0 0 14px;padding:8px 14px;border:0;border-radius:8px;background:#0
 <div class="grid">${metric("Accessibility", r.accessibility)}${metric("Infrastructure", r.infrastructure)}${metric("Development", r.development)}${metric("Environment", r.environment)}</div>
 <h2>Site context</h2>
 <table>${row("Nearest road", r.nearestRoad)}${row("Nearest school", r.nearestSchool)}${row("Nearest health facility", r.nearestHospital)}${row("Elevation", r.elevation)}${row("Slope", r.slope)}${row("Flood susceptibility", r.flood || "Not available")}${row("Land cover", r.landCover)}</table>
+${r.titleStatus ? landRegister(r.titleStatus) : ""}
 <h2>Education facilities within 2 km${r.educationCount != null ? ` (${r.educationCount} mapped)` : ""}</h2>
 <table><tr><td><b>Name</b></td><td><b>Type</b></td><td class="n"><b>Distance</b></td></tr>${eduRows}</table>
-<p class="note"><b>Data sources:</b> ${esc(r.source || "OpenStreetMap, GRID3, Copernicus DEM")}. Education data: HOT/OSM (ODbL). This report is a spatial context summary only. It is not a land title search, survey, valuation or flood-risk determination; verify ownership and title with the appropriate government authority.</p>
+<p class="note"><b>Data sources:</b> ${esc(r.source || "OpenStreetMap, GRID3, Copernicus DEM")}. Education data: HOT/OSM (ODbL). This report is a spatial context summary only. ${r.titleStatus?.ok ? "Its land register section shows what the GeoEstate registries named publish; it is not a full title search, and it is" : "It is not a land title search,"} not a survey, valuation or flood-risk determination; verify ownership and title with the appropriate government authority.</p>
 </body></html>`;
 }
