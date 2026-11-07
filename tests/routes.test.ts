@@ -171,6 +171,23 @@ describe("plan features and safety", () => {
     }
   });
 
+  it("outside its coverage LandCheck says so, offers the request, and charges nothing", async () => {
+    const LAGOS = { lat: 6.5244, lng: 3.3792 };
+    const p = await (await preview.GET(req(`/api/landcheck?lat=${LAGOS.lat}&lng=${LAGOS.lng}`))).json();
+    expect(p).toMatchObject({ covered: false, covered_states: ["Osun"] });
+    expect(p.score).toBeUndefined();
+    expect(p.request_url).toMatch(/^mailto:geoestate\.ng@gmail\.com\?subject=Bring%20LandCheck/);
+    const inOsun = await (await preview.GET(req(`/api/landcheck?lat=${OSOGBO.lat}&lng=${OSOGBO.lng}`))).json();
+    expect(inOsun.covered).toBe(true);
+    const org = "66666666-6666-4666-8666-666666666666";
+    const cookies = await as({ org });
+    const r = await reports.POST(req("/api/reports", { method: "POST", body: LAGOS, cookies }));
+    expect(r.status).toBe(422);
+    expect((await r.json()).code).toBe("outside_coverage");
+    const me = await (await reports.GET(req("/api/reports", { cookies }))).json().catch(() => null);
+    if (me?.usage) expect(me.usage.used).toBe(0);
+  });
+
   it("refuses changes that do not come from LandCheck's own pages", () => {
     expect(middleware(req("/api/reports", { method: "POST", body: {}, csrf: false })).status).toBe(403);
     expect(middleware(req("/api/reports", { method: "POST", body: {} })).status).toBe(200);

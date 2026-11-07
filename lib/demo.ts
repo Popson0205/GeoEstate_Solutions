@@ -20,6 +20,8 @@ export type LandCheckResult = {
   educationCount?: number | null;
   educationNearby?: { name: string; kind: string; d: number }[];
   source?: string;
+  covered?: boolean;                                       // false: LandCheck has no data here yet (preview only)
+  request_url?: string; covered_states?: string[];
   titleStatus?: import("./server/title").TitleStatus;      // LandCheck Advanced: from GeoEstate Land Registry, as at the report
 };
 
