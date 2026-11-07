@@ -559,7 +559,26 @@ export default function GeoEstateApp() {
             </div>
           )}
 
-          {selected && (
+          {selected && selected.covered === false && (
+            <div className="location-card">
+              <div className="card-head">
+                <div>
+                  <div className="card-eyebrow">GeoEstate LandCheck</div>
+                  <div className="card-title">{selected.place}</div>
+                  <div className="coords">{selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}</div>
+                </div>
+                <button className="close-btn" onClick={() => setSelected(null)} aria-label="Close"><X size={15}/></button>
+              </div>
+              <div className="locked">
+                <strong>LandCheck isn't available here yet</strong>
+                <span>LandCheck has prepared flood, slope, land-cover and facility data for {(selected.covered_states ?? ["Osun"]).join(", ")} State only, so it can't give a reliable report on this location. Nothing is charged.</span>
+                <span style={{ marginTop: 6 }}>States, agencies and organizations can bring LandCheck to their area: GeoEstate prepares the data and opens reports there.</span>
+                {selected.request_url && <a className="btn-solid btn-link" href={selected.request_url}>Bring LandCheck to your state</a>}
+              </div>
+            </div>
+          )}
+
+          {selected && selected.covered !== false && (
             <div className="location-card">
               <div className="card-head">
                 <div>
